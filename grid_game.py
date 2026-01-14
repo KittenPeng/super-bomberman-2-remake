@@ -152,7 +152,7 @@ PURPLE = (128, 0, 128)  # Glove powerup fallback
 
 # Create the window
 window = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
-pygame.display.set_caption("Grid Movement Game - P1: Arrow Keys + Space | P2: WASD + E")
+pygame.display.set_caption("Grid Movement Game - P1: Arrow Keys + Space | P2: WASD + E | P3: IJKL + O | P4: Numpad 8/4/5/6 + 9")
 
 # Powerups on the ground: {(grid_x, grid_y): powerup_type}
 powerups = {}
@@ -165,6 +165,8 @@ walk_through_walls = False  # Toggle to allow all players to walk through walls 
 # Players will be initialized after sprite loading
 player1 = None
 player2 = None
+player3 = None
+player4 = None
 
 # Player size (radius) - slightly smaller to help with corner navigation
 PLAYER_RADIUS = CELL_SIZE // 2 - 6
@@ -457,8 +459,12 @@ def remove_chroma_key(surface):
 # Player 2 bombs: Row 8 (y=128), columns x=128, 144, 160 (8 columns further than player 1)
 bomb_sprites = []  # List of bomb animation frames for player 1
 bomb2_sprites = []  # List of bomb animation frames for player 2
+bomb3_sprites = []  # List of bomb animation frames for player 3
+bomb4_sprites = []  # List of bomb animation frames for player 4
 bomb_sprite_loaded = False
 bomb2_sprite_loaded = False
+bomb3_sprite_loaded = False
+bomb4_sprite_loaded = False
 BOMB_ANIMATION_SPEED = 200  # milliseconds per frame
 try:
     # Suppress libpng warnings about incorrect sRGB profile
@@ -506,19 +512,59 @@ try:
         bomb_sprite = pygame.transform.scale(bomb_sprite, (CELL_SIZE, CELL_SIZE))
         bomb2_sprites.append(bomb_sprite)
     
+    # Load Player 3 bomb sprites from row 8 (same row as player 1), but 16 columns further
+    # 1st sprite: x=256 (column 16), 2nd sprite: x=272 (column 17), 3rd sprite: x=288 (column 18)
+    BOMB_ROW_Y_P3 = 128  # Row 8: same as player 1
+    bomb3_sprite_positions = [256, 272, 288]  # x coordinates for columns 16, 17, 18 (16 columns further than player 1)
+    
+    for x_pos in bomb3_sprite_positions:
+        bomb_sprite = pygame.Surface((BOMB_SPRITE_SIZE, BOMB_SPRITE_SIZE))
+        bomb_sprite.blit(bomb_sprite_sheet, (0, 0), (x_pos, BOMB_ROW_Y_P3, BOMB_SPRITE_SIZE, BOMB_SPRITE_SIZE))
+        
+        # Remove chroma key green background using the helper function
+        bomb_sprite = remove_chroma_key(bomb_sprite)
+        
+        # Scale with alpha preservation
+        bomb_sprite = pygame.transform.scale(bomb_sprite, (CELL_SIZE, CELL_SIZE))
+        bomb3_sprites.append(bomb_sprite)
+    
+    # Load Player 4 bomb sprites from row 8 (same row as player 1), but 24 columns further
+    # 1st sprite: x=384 (column 24), 2nd sprite: x=400 (column 25), 3rd sprite: x=416 (column 26)
+    BOMB_ROW_Y_P4 = 128  # Row 8: same as player 1
+    bomb4_sprite_positions = [384, 400, 416]  # x coordinates for columns 24, 25, 26 (24 columns further than player 1)
+    
+    for x_pos in bomb4_sprite_positions:
+        bomb_sprite = pygame.Surface((BOMB_SPRITE_SIZE, BOMB_SPRITE_SIZE))
+        bomb_sprite.blit(bomb_sprite_sheet, (0, 0), (x_pos, BOMB_ROW_Y_P4, BOMB_SPRITE_SIZE, BOMB_SPRITE_SIZE))
+        
+        # Remove chroma key green background using the helper function
+        bomb_sprite = remove_chroma_key(bomb_sprite)
+        
+        # Scale with alpha preservation
+        bomb_sprite = pygame.transform.scale(bomb_sprite, (CELL_SIZE, CELL_SIZE))
+        bomb4_sprites.append(bomb_sprite)
+    
     bomb_sprite_loaded = True
     bomb2_sprite_loaded = True
+    bomb3_sprite_loaded = True
+    bomb4_sprite_loaded = True
 except Exception as e:
     bomb_sprite_loaded = False
     bomb2_sprite_loaded = False
+    bomb3_sprite_loaded = False
+    bomb4_sprite_loaded = False
     print(f"Warning: Could not load bomb sprites: {e}. Using default circle.")
 
 # Load player sprites for all directions with walking animations
 # Dictionary: 'up', 'right', 'down', 'left' -> list of sprites [idle, walk1, walk2]
 player_sprites = {}
 player2_sprites = {}
+player3_sprites = {}
+player4_sprites = {}
 player_sprite_loaded = False
 player2_sprite_loaded = False
+player3_sprite_loaded = False
+player4_sprite_loaded = False
 try:
     # Suppress libpng warnings about incorrect sRGB profile
     old_stderr = sys.stderr
@@ -725,6 +771,316 @@ try:
         glove_pickup_sprites2_loaded = False
         print(f"Warning: Could not load player 2 sprite: {e}. Using default circle.")
     
+    # Load Player 3 sprites from separate file (player 3.png)
+    # Use the same sprite positions as player 1 (rows 1-4)
+    try:
+        old_stderr = sys.stderr
+        sys.stderr = open(os.devnull, 'w')
+        try:
+            player3_sprite_sheet = pygame.image.load(resource_path("player 3.png"))
+        finally:
+            sys.stderr.close()
+            sys.stderr = old_stderr
+        player3_sprite_sheet = player3_sprite_sheet.convert()
+        
+        # Load Player 3 sprites using same positions as Player 1
+        for direction, y_offset in directions.items():
+            direction_sprites = []
+            for frame_name, x_offset in columns.items():
+                sprite = pygame.Surface((PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+                sprite.blit(player3_sprite_sheet, (0, 0), (x_offset, y_offset, PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+                
+                # Remove chroma key green background using the helper function
+                sprite = remove_chroma_key(sprite)
+                # Scale player sprite to be 2.5x bigger (maintain 1:2 aspect ratio)
+                # 16x32 becomes 40x80
+                new_width = int(PLAYER_SPRITE_WIDTH * 2.5)
+                new_height = int(PLAYER_SPRITE_HEIGHT * 2.5)
+                sprite = pygame.transform.scale(sprite, (new_width, new_height))
+                direction_sprites.append(sprite)
+            
+            player3_sprites[direction] = direction_sprites  # [idle, walk1, walk2]
+        
+        # Load Player 3 death animation sprites from player3_sprite_sheet using same positions as player 1
+        # Player sprites are 16x32 pixels, rows are 32 pixels apart
+        # Row 11 (1-indexed) = y = 10 * 32 = 320
+        # Row 12 (1-indexed) = y = 11 * 32 = 352
+        # Row 5 (1-indexed) = y = 4 * 32 = 128
+        # Columns are 16 pixels apart
+        # Sprite 1 = x = 0, Sprite 2 = x = 16, Sprite 3 = x = 32, Sprite 4 = x = 48, Sprite 5 = x = 64
+        death_sprites3 = []
+        DEATH_ROW_11_Y = 10 * 32  # Row 11 (1-indexed) = 320
+        DEATH_ROW_12_Y = 11 * 32  # Row 12 (1-indexed) = 352
+        DEATH_ROW_5_Y = 4 * 32    # Row 5 (1-indexed) = 128
+        
+        # Front facing: row 11, sprite 1 (x=0)
+        front_sprite3 = pygame.Surface((PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+        front_sprite3.blit(player3_sprite_sheet, (0, 0), (0, DEATH_ROW_11_Y, PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+        front_sprite3 = remove_chroma_key(front_sprite3)
+        front_sprite3 = pygame.transform.scale(front_sprite3, (int(PLAYER_SPRITE_WIDTH * 2.5), int(PLAYER_SPRITE_HEIGHT * 2.5)))
+        death_sprites3.append(front_sprite3)
+        
+        # Right facing: row 11, sprite 2 (x=16)
+        right_sprite3 = pygame.Surface((PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+        right_sprite3.blit(player3_sprite_sheet, (0, 0), (16, DEATH_ROW_11_Y, PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+        right_sprite3 = remove_chroma_key(right_sprite3)
+        right_sprite3 = pygame.transform.scale(right_sprite3, (int(PLAYER_SPRITE_WIDTH * 2.5), int(PLAYER_SPRITE_HEIGHT * 2.5)))
+        death_sprites3.append(right_sprite3)
+        
+        # Back facing: row 5, sprite 1 (x=0)
+        back_sprite3 = pygame.Surface((PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+        back_sprite3.blit(player3_sprite_sheet, (0, 0), (0, DEATH_ROW_5_Y, PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+        back_sprite3 = remove_chroma_key(back_sprite3)
+        back_sprite3 = pygame.transform.scale(back_sprite3, (int(PLAYER_SPRITE_WIDTH * 2.5), int(PLAYER_SPRITE_HEIGHT * 2.5)))
+        death_sprites3.append(back_sprite3)
+        
+        # Left facing: row 11, sprite 3 (x=32)
+        left_sprite3 = pygame.Surface((PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+        left_sprite3.blit(player3_sprite_sheet, (0, 0), (32, DEATH_ROW_11_Y, PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+        left_sprite3 = remove_chroma_key(left_sprite3)
+        left_sprite3 = pygame.transform.scale(left_sprite3, (int(PLAYER_SPRITE_WIDTH * 2.5), int(PLAYER_SPRITE_HEIGHT * 2.5)))
+        death_sprites3.append(left_sprite3)
+        
+        # Additional death animation sprites
+        # Row 11, sprite 4 (x=48)
+        row11_sprite4_3 = pygame.Surface((PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+        row11_sprite4_3.blit(player3_sprite_sheet, (0, 0), (48, DEATH_ROW_11_Y, PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+        row11_sprite4_3 = remove_chroma_key(row11_sprite4_3)
+        row11_sprite4_3 = pygame.transform.scale(row11_sprite4_3, (int(PLAYER_SPRITE_WIDTH * 2.5), int(PLAYER_SPRITE_HEIGHT * 2.5)))
+        death_sprites3.append(row11_sprite4_3)
+        
+        # Row 12, sprite 1 (x=0)
+        row12_sprite1_3 = pygame.Surface((PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+        row12_sprite1_3.blit(player3_sprite_sheet, (0, 0), (0, DEATH_ROW_12_Y, PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+        row12_sprite1_3 = remove_chroma_key(row12_sprite1_3)
+        row12_sprite1_3 = pygame.transform.scale(row12_sprite1_3, (int(PLAYER_SPRITE_WIDTH * 2.5), int(PLAYER_SPRITE_HEIGHT * 2.5)))
+        death_sprites3.append(row12_sprite1_3)
+        
+        # Row 12, sprite 2 (x=16)
+        row12_sprite2_3 = pygame.Surface((PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+        row12_sprite2_3.blit(player3_sprite_sheet, (0, 0), (16, DEATH_ROW_12_Y, PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+        row12_sprite2_3 = remove_chroma_key(row12_sprite2_3)
+        row12_sprite2_3 = pygame.transform.scale(row12_sprite2_3, (int(PLAYER_SPRITE_WIDTH * 2.5), int(PLAYER_SPRITE_HEIGHT * 2.5)))
+        death_sprites3.append(row12_sprite2_3)
+        
+        # Row 12, sprite 3 (x=32)
+        row12_sprite3_3 = pygame.Surface((PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+        row12_sprite3_3.blit(player3_sprite_sheet, (0, 0), (32, DEATH_ROW_12_Y, PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+        row12_sprite3_3 = remove_chroma_key(row12_sprite3_3)
+        row12_sprite3_3 = pygame.transform.scale(row12_sprite3_3, (int(PLAYER_SPRITE_WIDTH * 2.5), int(PLAYER_SPRITE_HEIGHT * 2.5)))
+        death_sprites3.append(row12_sprite3_3)
+        
+        # Row 12, sprite 4 (x=48)
+        row12_sprite4_3 = pygame.Surface((PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+        row12_sprite4_3.blit(player3_sprite_sheet, (0, 0), (48, DEATH_ROW_12_Y, PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+        row12_sprite4_3 = remove_chroma_key(row12_sprite4_3)
+        row12_sprite4_3 = pygame.transform.scale(row12_sprite4_3, (int(PLAYER_SPRITE_WIDTH * 2.5), int(PLAYER_SPRITE_HEIGHT * 2.5)))
+        death_sprites3.append(row12_sprite4_3)
+        
+        # Row 12, sprite 5 (x=64)
+        row12_sprite5_3 = pygame.Surface((PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+        row12_sprite5_3.blit(player3_sprite_sheet, (0, 0), (64, DEATH_ROW_12_Y, PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+        row12_sprite5_3 = remove_chroma_key(row12_sprite5_3)
+        row12_sprite5_3 = pygame.transform.scale(row12_sprite5_3, (int(PLAYER_SPRITE_WIDTH * 2.5), int(PLAYER_SPRITE_HEIGHT * 2.5)))
+        death_sprites3.append(row12_sprite5_3)
+        
+        # Load Player 3 glove pickup animation sprites from player3_sprite_sheet using same positions as player 1
+        # Dictionary: 'up', 'right', 'down', 'left' -> list of sprites [sprite1, sprite2, sprite3, sprite4]
+        # Sprites: 1 = x=0, 2 = x=16, 3 = x=32, 4 = x=48
+        glove_pickup_sprites3 = {}
+        
+        # Helper function to load sprites from a row for player 3
+        def load_glove_row_sprites3(row_y):
+            sprites = []
+            for sprite_num in range(1, 5):  # Sprites 1-4
+                x_offset = (sprite_num - 1) * 16  # x=0, 16, 32, 48
+                sprite = pygame.Surface((PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+                sprite.blit(player3_sprite_sheet, (0, 0), (x_offset, row_y, PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+                sprite = remove_chroma_key(sprite)
+                sprite = pygame.transform.scale(sprite, (int(PLAYER_SPRITE_WIDTH * 2.5), int(PLAYER_SPRITE_HEIGHT * 2.5)))
+                sprites.append(sprite)
+            return sprites
+        
+        # Row 5 (1-indexed) = y = 4 * 32 = 128 (facing up)
+        GLOVE_PICKUP_ROW_5_Y = 4 * 32
+        glove_pickup_sprites3['up'] = load_glove_row_sprites3(GLOVE_PICKUP_ROW_5_Y)
+        
+        # Row 6 (1-indexed) = y = 5 * 32 = 160 (facing right)
+        GLOVE_PICKUP_ROW_6_Y = 5 * 32
+        glove_pickup_sprites3['right'] = load_glove_row_sprites3(GLOVE_PICKUP_ROW_6_Y)
+        
+        # Row 7 (1-indexed) = y = 6 * 32 = 192 (facing down)
+        GLOVE_PICKUP_ROW_7_Y = 6 * 32
+        glove_pickup_sprites3['down'] = load_glove_row_sprites3(GLOVE_PICKUP_ROW_7_Y)
+        
+        # Row 8 (1-indexed) = y = 7 * 32 = 224 (facing left)
+        GLOVE_PICKUP_ROW_8_Y = 7 * 32
+        glove_pickup_sprites3['left'] = load_glove_row_sprites3(GLOVE_PICKUP_ROW_8_Y)
+        
+        player3_sprite_loaded = True
+        death_sprites3_loaded = True
+        glove_pickup_sprites3_loaded = True
+    except Exception as e:
+        player3_sprite_loaded = False
+        death_sprites3_loaded = False
+        glove_pickup_sprites3_loaded = False
+        print(f"Warning: Could not load player 3 sprite: {e}. Using default circle.")
+    
+    # Load Player 4 sprites from separate file (player 4.png)
+    # Use the same sprite positions as player 1 (rows 1-4)
+    try:
+        old_stderr = sys.stderr
+        sys.stderr = open(os.devnull, 'w')
+        try:
+            player4_sprite_sheet = pygame.image.load(resource_path("player 4.png"))
+        finally:
+            sys.stderr.close()
+            sys.stderr = old_stderr
+        player4_sprite_sheet = player4_sprite_sheet.convert()
+        
+        # Load Player 4 sprites using same positions as Player 1
+        for direction, y_offset in directions.items():
+            direction_sprites = []
+            for frame_name, x_offset in columns.items():
+                sprite = pygame.Surface((PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+                sprite.blit(player4_sprite_sheet, (0, 0), (x_offset, y_offset, PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+                
+                # Remove chroma key green background using the helper function
+                sprite = remove_chroma_key(sprite)
+                # Scale player sprite to be 2.5x bigger (maintain 1:2 aspect ratio)
+                # 16x32 becomes 40x80
+                new_width = int(PLAYER_SPRITE_WIDTH * 2.5)
+                new_height = int(PLAYER_SPRITE_HEIGHT * 2.5)
+                sprite = pygame.transform.scale(sprite, (new_width, new_height))
+                direction_sprites.append(sprite)
+            
+            player4_sprites[direction] = direction_sprites  # [idle, walk1, walk2]
+        
+        # Load Player 4 death animation sprites from player4_sprite_sheet using same positions as player 1
+        # Player sprites are 16x32 pixels, rows are 32 pixels apart
+        # Row 11 (1-indexed) = y = 10 * 32 = 320
+        # Row 12 (1-indexed) = y = 11 * 32 = 352
+        # Row 5 (1-indexed) = y = 4 * 32 = 128
+        # Columns are 16 pixels apart
+        # Sprite 1 = x = 0, Sprite 2 = x = 16, Sprite 3 = x = 32, Sprite 4 = x = 48, Sprite 5 = x = 64
+        death_sprites4 = []
+        DEATH_ROW_11_Y = 10 * 32  # Row 11 (1-indexed) = 320
+        DEATH_ROW_12_Y = 11 * 32  # Row 12 (1-indexed) = 352
+        DEATH_ROW_5_Y = 4 * 32    # Row 5 (1-indexed) = 128
+        
+        # Front facing: row 11, sprite 1 (x=0)
+        front_sprite4 = pygame.Surface((PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+        front_sprite4.blit(player4_sprite_sheet, (0, 0), (0, DEATH_ROW_11_Y, PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+        front_sprite4 = remove_chroma_key(front_sprite4)
+        front_sprite4 = pygame.transform.scale(front_sprite4, (int(PLAYER_SPRITE_WIDTH * 2.5), int(PLAYER_SPRITE_HEIGHT * 2.5)))
+        death_sprites4.append(front_sprite4)
+        
+        # Right facing: row 11, sprite 2 (x=16)
+        right_sprite4 = pygame.Surface((PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+        right_sprite4.blit(player4_sprite_sheet, (0, 0), (16, DEATH_ROW_11_Y, PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+        right_sprite4 = remove_chroma_key(right_sprite4)
+        right_sprite4 = pygame.transform.scale(right_sprite4, (int(PLAYER_SPRITE_WIDTH * 2.5), int(PLAYER_SPRITE_HEIGHT * 2.5)))
+        death_sprites4.append(right_sprite4)
+        
+        # Back facing: row 5, sprite 1 (x=0)
+        back_sprite4 = pygame.Surface((PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+        back_sprite4.blit(player4_sprite_sheet, (0, 0), (0, DEATH_ROW_5_Y, PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+        back_sprite4 = remove_chroma_key(back_sprite4)
+        back_sprite4 = pygame.transform.scale(back_sprite4, (int(PLAYER_SPRITE_WIDTH * 2.5), int(PLAYER_SPRITE_HEIGHT * 2.5)))
+        death_sprites4.append(back_sprite4)
+        
+        # Left facing: row 11, sprite 3 (x=32)
+        left_sprite4 = pygame.Surface((PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+        left_sprite4.blit(player4_sprite_sheet, (0, 0), (32, DEATH_ROW_11_Y, PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+        left_sprite4 = remove_chroma_key(left_sprite4)
+        left_sprite4 = pygame.transform.scale(left_sprite4, (int(PLAYER_SPRITE_WIDTH * 2.5), int(PLAYER_SPRITE_HEIGHT * 2.5)))
+        death_sprites4.append(left_sprite4)
+        
+        # Additional death animation sprites
+        # Row 11, sprite 4 (x=48)
+        row11_sprite4_4 = pygame.Surface((PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+        row11_sprite4_4.blit(player4_sprite_sheet, (0, 0), (48, DEATH_ROW_11_Y, PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+        row11_sprite4_4 = remove_chroma_key(row11_sprite4_4)
+        row11_sprite4_4 = pygame.transform.scale(row11_sprite4_4, (int(PLAYER_SPRITE_WIDTH * 2.5), int(PLAYER_SPRITE_HEIGHT * 2.5)))
+        death_sprites4.append(row11_sprite4_4)
+        
+        # Row 12, sprite 1 (x=0)
+        row12_sprite1_4 = pygame.Surface((PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+        row12_sprite1_4.blit(player4_sprite_sheet, (0, 0), (0, DEATH_ROW_12_Y, PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+        row12_sprite1_4 = remove_chroma_key(row12_sprite1_4)
+        row12_sprite1_4 = pygame.transform.scale(row12_sprite1_4, (int(PLAYER_SPRITE_WIDTH * 2.5), int(PLAYER_SPRITE_HEIGHT * 2.5)))
+        death_sprites4.append(row12_sprite1_4)
+        
+        # Row 12, sprite 2 (x=16)
+        row12_sprite2_4 = pygame.Surface((PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+        row12_sprite2_4.blit(player4_sprite_sheet, (0, 0), (16, DEATH_ROW_12_Y, PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+        row12_sprite2_4 = remove_chroma_key(row12_sprite2_4)
+        row12_sprite2_4 = pygame.transform.scale(row12_sprite2_4, (int(PLAYER_SPRITE_WIDTH * 2.5), int(PLAYER_SPRITE_HEIGHT * 2.5)))
+        death_sprites4.append(row12_sprite2_4)
+        
+        # Row 12, sprite 3 (x=32)
+        row12_sprite3_4 = pygame.Surface((PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+        row12_sprite3_4.blit(player4_sprite_sheet, (0, 0), (32, DEATH_ROW_12_Y, PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+        row12_sprite3_4 = remove_chroma_key(row12_sprite3_4)
+        row12_sprite3_4 = pygame.transform.scale(row12_sprite3_4, (int(PLAYER_SPRITE_WIDTH * 2.5), int(PLAYER_SPRITE_HEIGHT * 2.5)))
+        death_sprites4.append(row12_sprite3_4)
+        
+        # Row 12, sprite 4 (x=48)
+        row12_sprite4_4 = pygame.Surface((PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+        row12_sprite4_4.blit(player4_sprite_sheet, (0, 0), (48, DEATH_ROW_12_Y, PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+        row12_sprite4_4 = remove_chroma_key(row12_sprite4_4)
+        row12_sprite4_4 = pygame.transform.scale(row12_sprite4_4, (int(PLAYER_SPRITE_WIDTH * 2.5), int(PLAYER_SPRITE_HEIGHT * 2.5)))
+        death_sprites4.append(row12_sprite4_4)
+        
+        # Row 12, sprite 5 (x=64)
+        row12_sprite5_4 = pygame.Surface((PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+        row12_sprite5_4.blit(player4_sprite_sheet, (0, 0), (64, DEATH_ROW_12_Y, PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+        row12_sprite5_4 = remove_chroma_key(row12_sprite5_4)
+        row12_sprite5_4 = pygame.transform.scale(row12_sprite5_4, (int(PLAYER_SPRITE_WIDTH * 2.5), int(PLAYER_SPRITE_HEIGHT * 2.5)))
+        death_sprites4.append(row12_sprite5_4)
+        
+        # Load Player 4 glove pickup animation sprites from player4_sprite_sheet using same positions as player 1
+        # Dictionary: 'up', 'right', 'down', 'left' -> list of sprites [sprite1, sprite2, sprite3, sprite4]
+        # Sprites: 1 = x=0, 2 = x=16, 3 = x=32, 4 = x=48
+        glove_pickup_sprites4 = {}
+        
+        # Helper function to load sprites from a row for player 4
+        def load_glove_row_sprites4(row_y):
+            sprites = []
+            for sprite_num in range(1, 5):  # Sprites 1-4
+                x_offset = (sprite_num - 1) * 16  # x=0, 16, 32, 48
+                sprite = pygame.Surface((PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+                sprite.blit(player4_sprite_sheet, (0, 0), (x_offset, row_y, PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+                sprite = remove_chroma_key(sprite)
+                sprite = pygame.transform.scale(sprite, (int(PLAYER_SPRITE_WIDTH * 2.5), int(PLAYER_SPRITE_HEIGHT * 2.5)))
+                sprites.append(sprite)
+            return sprites
+        
+        # Row 5 (1-indexed) = y = 4 * 32 = 128 (facing up)
+        GLOVE_PICKUP_ROW_5_Y = 4 * 32
+        glove_pickup_sprites4['up'] = load_glove_row_sprites4(GLOVE_PICKUP_ROW_5_Y)
+        
+        # Row 6 (1-indexed) = y = 5 * 32 = 160 (facing right)
+        GLOVE_PICKUP_ROW_6_Y = 5 * 32
+        glove_pickup_sprites4['right'] = load_glove_row_sprites4(GLOVE_PICKUP_ROW_6_Y)
+        
+        # Row 7 (1-indexed) = y = 6 * 32 = 192 (facing down)
+        GLOVE_PICKUP_ROW_7_Y = 6 * 32
+        glove_pickup_sprites4['down'] = load_glove_row_sprites4(GLOVE_PICKUP_ROW_7_Y)
+        
+        # Row 8 (1-indexed) = y = 7 * 32 = 224 (facing left)
+        GLOVE_PICKUP_ROW_8_Y = 7 * 32
+        glove_pickup_sprites4['left'] = load_glove_row_sprites4(GLOVE_PICKUP_ROW_8_Y)
+        
+        player4_sprite_loaded = True
+        death_sprites4_loaded = True
+        glove_pickup_sprites4_loaded = True
+    except Exception as e:
+        player4_sprite_loaded = False
+        death_sprites4_loaded = False
+        glove_pickup_sprites4_loaded = False
+        print(f"Warning: Could not load player 4 sprite: {e}. Using default circle.")
+    
     # Load death animation sprites
     # Player sprites are 16x32 pixels, rows are 32 pixels apart
     # Row 11 (1-indexed) = y = 10 * 32 = 320
@@ -864,6 +1220,26 @@ if 'death_sprites2_loaded' not in globals():
 if 'glove_pickup_sprites2_loaded' not in globals():
     glove_pickup_sprites2_loaded = False
 
+# Initialize player 3 death and glove pickup sprites
+if 'death_sprites3' not in globals():
+    death_sprites3 = []
+if 'glove_pickup_sprites3' not in globals():
+    glove_pickup_sprites3 = {}
+if 'death_sprites3_loaded' not in globals():
+    death_sprites3_loaded = False
+if 'glove_pickup_sprites3_loaded' not in globals():
+    glove_pickup_sprites3_loaded = False
+
+# Initialize player 4 death and glove pickup sprites
+if 'death_sprites4' not in globals():
+    death_sprites4 = []
+if 'glove_pickup_sprites4' not in globals():
+    glove_pickup_sprites4 = {}
+if 'death_sprites4_loaded' not in globals():
+    death_sprites4_loaded = False
+if 'glove_pickup_sprites4_loaded' not in globals():
+    glove_pickup_sprites4_loaded = False
+
 # Initialize glove_pickup_sprites as empty dictionary if not loaded
 if 'glove_pickup_sprites' not in globals():
     glove_pickup_sprites = {}
@@ -874,6 +1250,10 @@ if 'glove_pickup_sprites' not in globals():
 player1 = Player(1 * CELL_SIZE + CELL_SIZE // 2, 1 * CELL_SIZE + CELL_SIZE // 2, 1, player_sprites if player_sprite_loaded else {})
 # Player 2 spawns at bottom-right (GRID_WIDTH - 2, GRID_HEIGHT - 2)
 player2 = Player((GRID_WIDTH - 2) * CELL_SIZE + CELL_SIZE // 2, (GRID_HEIGHT - 2) * CELL_SIZE + CELL_SIZE // 2, 2, player2_sprites if player2_sprite_loaded else {})
+# Player 3 spawns at top-right (GRID_WIDTH - 2, 1)
+player3 = Player((GRID_WIDTH - 2) * CELL_SIZE + CELL_SIZE // 2, 1 * CELL_SIZE + CELL_SIZE // 2, 3, player3_sprites if player3_sprite_loaded else {})
+# Player 4 spawns at bottom-left (1, GRID_HEIGHT - 2)
+player4 = Player(1 * CELL_SIZE + CELL_SIZE // 2, (GRID_HEIGHT - 2) * CELL_SIZE + CELL_SIZE // 2, 4, player4_sprites if player4_sprite_loaded else {})
 
 # Load pause image
 pause_image = None
@@ -918,8 +1298,12 @@ except Exception as e:
 # Player 2 explosions: rows 9-13, columns 9-16
 explosion_sprites = {}  # Player 1 explosion sprites
 explosion2_sprites = {}  # Player 2 explosion sprites
+explosion3_sprites = {}  # Player 3 explosion sprites
+explosion4_sprites = {}  # Player 4 explosion sprites
 explosion_sprites_loaded = False
 explosion2_sprites_loaded = False
+explosion3_sprites_loaded = False
+explosion4_sprites_loaded = False
 
 try:
     # Load the bomb sprite sheet (which contains explosions)
@@ -1018,11 +1402,93 @@ try:
         explosion2_sprites[row_idx]['vertical_down'] = explosion2_sprites[row_idx]['vertical']
         explosion2_sprites[row_idx]['vertical_up'] = explosion2_sprites[row_idx]['vertical']
     
+    # Load Player 3 explosion sprites from rows 10-14, columns 16-23 (16 columns to the right of player 1)
+    # Rows 10-14: y = 144, 160, 176, 192, 208 (same rows as player 1)
+    # Columns 16-23: x = 256, 272, 288, 304, 320, 336, 352
+    # Column 16 (x=256): Top end sprite
+    # Column 17 (x=272): Bottom end sprite
+    # Column 18 (x=288): Left end sprite
+    # Column 19 (x=304): Right end sprite
+    # Column 20 (x=320): Vertical segments (up/down arms)
+    # Column 21 (x=336): Horizontal segments (left/right arms)
+    # Column 22 (x=352): Center explosion - for bomb tile
+    
+    explosion_rows_p3 = [208, 192, 176, 160, 144]  # y coordinates for rows 14, 13, 12, 11, 10 (same as player 1)
+    
+    explosion_types_p3 = {
+        'end_up': 256,     # Column 16 - top end sprite
+        'end_down': 272,   # Column 17 - bottom end sprite
+        'end_left': 288,   # Column 18 - left end sprite
+        'end_right': 304,  # Column 19 - right end sprite
+        'vertical': 320,   # Column 20 - vertical segment (up/down arms)
+        'horizontal': 336, # Column 21 - horizontal segment (left/right arms)
+        'center': 352,     # Column 22 - 4-way cross explosion
+    }
+    
+    # Load Player 3 sprites for each row
+    explosion3_sprites = {}  # Will be {row_index: {sprite_type: sprite}}
+    for row_idx, row_y in enumerate(explosion_rows_p3):
+        explosion3_sprites[row_idx] = {}
+        for name, sx in explosion_types_p3.items():
+            sprite = pygame.Surface((SPRITE_SIZE, SPRITE_SIZE))
+            sprite.blit(explosion_sheet, (0, 0), (sx, row_y, SPRITE_SIZE, SPRITE_SIZE))
+            sprite = remove_chroma_key(sprite)
+            sprite = pygame.transform.scale(sprite, (CELL_SIZE, CELL_SIZE))
+            explosion3_sprites[row_idx][name] = sprite
+    
+    # Create 'vertical_down' and 'vertical_up' aliases for backward compatibility
+    for row_idx in explosion3_sprites:
+        explosion3_sprites[row_idx]['vertical_down'] = explosion3_sprites[row_idx]['vertical']
+        explosion3_sprites[row_idx]['vertical_up'] = explosion3_sprites[row_idx]['vertical']
+    
+    # Load Player 4 explosion sprites from rows 10-14, columns 24-31 (24 columns to the right of player 1)
+    # Rows 10-14: y = 144, 160, 176, 192, 208 (same rows as player 1)
+    # Columns 24-31: x = 384, 400, 416, 432, 448, 464, 480
+    # Column 24 (x=384): Top end sprite
+    # Column 25 (x=400): Bottom end sprite
+    # Column 26 (x=416): Left end sprite
+    # Column 27 (x=432): Right end sprite
+    # Column 28 (x=448): Vertical segments (up/down arms)
+    # Column 29 (x=464): Horizontal segments (left/right arms)
+    # Column 30 (x=480): Center explosion - for bomb tile
+    
+    explosion_rows_p4 = [208, 192, 176, 160, 144]  # y coordinates for rows 14, 13, 12, 11, 10 (same as player 1)
+    
+    explosion_types_p4 = {
+        'end_up': 384,     # Column 24 - top end sprite
+        'end_down': 400,   # Column 25 - bottom end sprite
+        'end_left': 416,   # Column 26 - left end sprite
+        'end_right': 432,  # Column 27 - right end sprite
+        'vertical': 448,   # Column 28 - vertical segment (up/down arms)
+        'horizontal': 464, # Column 29 - horizontal segment (left/right arms)
+        'center': 480,     # Column 30 - 4-way cross explosion
+    }
+    
+    # Load Player 4 sprites for each row
+    explosion4_sprites = {}  # Will be {row_index: {sprite_type: sprite}}
+    for row_idx, row_y in enumerate(explosion_rows_p4):
+        explosion4_sprites[row_idx] = {}
+        for name, sx in explosion_types_p4.items():
+            sprite = pygame.Surface((SPRITE_SIZE, SPRITE_SIZE))
+            sprite.blit(explosion_sheet, (0, 0), (sx, row_y, SPRITE_SIZE, SPRITE_SIZE))
+            sprite = remove_chroma_key(sprite)
+            sprite = pygame.transform.scale(sprite, (CELL_SIZE, CELL_SIZE))
+            explosion4_sprites[row_idx][name] = sprite
+    
+    # Create 'vertical_down' and 'vertical_up' aliases for backward compatibility
+    for row_idx in explosion4_sprites:
+        explosion4_sprites[row_idx]['vertical_down'] = explosion4_sprites[row_idx]['vertical']
+        explosion4_sprites[row_idx]['vertical_up'] = explosion4_sprites[row_idx]['vertical']
+    
     explosion_sprites_loaded = True
     explosion2_sprites_loaded = True
+    explosion3_sprites_loaded = True
+    explosion4_sprites_loaded = True
 except Exception as e:
     explosion_sprites_loaded = False
     explosion2_sprites_loaded = False
+    explosion3_sprites_loaded = False
+    explosion4_sprites_loaded = False
     print(f"Warning: Could not load explosion sprites: {e}. Using default visualization.")
 
 # Load item explosion animation sprites from Bombs.png sprite sheet
@@ -1545,10 +2011,23 @@ def get_sprite_for_cell(grid_x, grid_y, bomb, animation_row=0):
         explosion_range = player1.explosion_range
     elif bomb.placed_by == 2 and player2:
         explosion_range = player2.explosion_range
+    elif bomb.placed_by == 3 and player3:
+        explosion_range = player3.explosion_range
+    elif bomb.placed_by == 4 and player4:
+        explosion_range = player4.explosion_range
     
     # Get sprites for the current animation row - use appropriate sprite set based on which player placed the bomb
     bomb_owner = bomb.placed_by if bomb.placed_by else 1  # Default to player 1 if not set
-    sprite_set = explosion_sprites if bomb_owner == 1 else (explosion2_sprites if bomb_owner == 2 else explosion_sprites)
+    if bomb_owner == 1:
+        sprite_set = explosion_sprites
+    elif bomb_owner == 2:
+        sprite_set = explosion2_sprites
+    elif bomb_owner == 3:
+        sprite_set = explosion3_sprites
+    elif bomb_owner == 4:
+        sprite_set = explosion4_sprites
+    else:
+        sprite_set = explosion_sprites
     row_sprites = sprite_set.get(animation_row, {})
     
     if dx == 0 and dy == 0:
@@ -1609,9 +2088,18 @@ def get_sprite_for_cell(grid_x, grid_y, bomb, animation_row=0):
 def get_sprite_for_cell_from_pattern(grid_x, grid_y, all_explosion_cells, bomb_positions, animation_row=0, placed_by=1):
     """Determine which explosion sprite to use for a cell based on the overall explosion pattern
     This fixes issues when multiple bombs overlap - determines sprite based on neighbors, not relative to individual bombs
-    placed_by: 1 for player 1, 2 for player 2"""
+    placed_by: 1 for player 1, 2 for player 2, 3 for player 3, 4 for player 4"""
     # Get sprites for the current animation row - use appropriate sprite set based on player
-    sprite_set = explosion_sprites if placed_by == 1 else (explosion2_sprites if placed_by == 2 else explosion_sprites)
+    if placed_by == 1:
+        sprite_set = explosion_sprites
+    elif placed_by == 2:
+        sprite_set = explosion2_sprites
+    elif placed_by == 3:
+        sprite_set = explosion3_sprites
+    elif placed_by == 4:
+        sprite_set = explosion4_sprites
+    else:
+        sprite_set = explosion_sprites
     row_sprites = sprite_set.get(animation_row, {})
     
     # Check if this cell is a bomb center
@@ -1762,6 +2250,10 @@ def draw_bombs(current_time):
                         max_distance = player1.explosion_range
                     elif bomb.placed_by == 2 and player2:
                         max_distance = player2.explosion_range
+                    elif bomb.placed_by == 3 and player3:
+                        max_distance = player3.explosion_range
+                    elif bomb.placed_by == 4 and player4:
+                        max_distance = player4.explosion_range
                     
                     pulse = 0.7 + 0.3 * abs(math.sin(explosion_progress * math.pi * 4))
                     alpha = int(180 * pulse)
@@ -1804,10 +2296,23 @@ def draw_bombs(current_time):
             
             # Normal drawing for non-thrown bombs
             # Choose sprite list based on which player placed the bomb
-            # NOTE: Animation pattern, timing, and rendering logic are IDENTICAL for both players
-            # Only the sprite source differs (bomb_sprites vs bomb2_sprites)
-            sprite_list = bomb_sprites if bomb.placed_by == 1 else (bomb2_sprites if bomb.placed_by == 2 else bomb_sprites)
-            sprite_loaded = bomb_sprite_loaded if bomb.placed_by == 1 else (bomb2_sprite_loaded if bomb.placed_by == 2 else bomb_sprite_loaded)
+            # NOTE: Animation pattern, timing, and rendering logic are IDENTICAL for all players
+            # Only the sprite source differs (bomb_sprites vs bomb2_sprites vs bomb3_sprites vs bomb4_sprites)
+            if bomb.placed_by == 1:
+                sprite_list = bomb_sprites
+                sprite_loaded = bomb_sprite_loaded
+            elif bomb.placed_by == 2:
+                sprite_list = bomb2_sprites
+                sprite_loaded = bomb2_sprite_loaded
+            elif bomb.placed_by == 3:
+                sprite_list = bomb3_sprites
+                sprite_loaded = bomb3_sprite_loaded
+            elif bomb.placed_by == 4:
+                sprite_list = bomb4_sprites
+                sprite_loaded = bomb4_sprite_loaded
+            else:
+                sprite_list = bomb_sprites
+                sprite_loaded = bomb_sprite_loaded
             
             if sprite_loaded and len(sprite_list) >= 3:
                 # Calculate animation frame based on time elapsed since bomb was placed
@@ -1829,6 +2334,12 @@ def draw_bombs(current_time):
                 # Use different colors for different players
                 if bomb.placed_by == 2:
                     pygame.draw.circle(window, BLUE, (int(x), int(draw_y)), CELL_SIZE // 3)
+                    pygame.draw.circle(window, BLACK, (int(x), int(draw_y)), CELL_SIZE // 6)
+                elif bomb.placed_by == 3:
+                    pygame.draw.circle(window, GREEN, (int(x), int(draw_y)), CELL_SIZE // 3)
+                    pygame.draw.circle(window, BLACK, (int(x), int(draw_y)), CELL_SIZE // 6)
+                elif bomb.placed_by == 4:
+                    pygame.draw.circle(window, YELLOW, (int(x), int(draw_y)), CELL_SIZE // 3)
                     pygame.draw.circle(window, BLACK, (int(x), int(draw_y)), CELL_SIZE // 6)
                 else:
                     pygame.draw.circle(window, ORANGE, (int(x), int(draw_y)), CELL_SIZE // 3)
@@ -1970,10 +2481,23 @@ def draw_thrown_bombs(current_time):
                 if (draw_x >= -visibility_margin and draw_x <= WINDOW_WIDTH + visibility_margin and
                     draw_y_pos >= -visibility_margin and draw_y_pos <= WINDOW_HEIGHT + visibility_margin):
                     # Choose sprite list based on which player placed the bomb
-                    # NOTE: Animation pattern, timing, and rendering logic are IDENTICAL for both players
-                    # Only the sprite source differs (bomb_sprites vs bomb2_sprites)
-                    sprite_list = bomb_sprites if bomb.placed_by == 1 else (bomb2_sprites if bomb.placed_by == 2 else bomb_sprites)
-                    sprite_loaded = bomb_sprite_loaded if bomb.placed_by == 1 else (bomb2_sprite_loaded if bomb.placed_by == 2 else bomb_sprite_loaded)
+                    # NOTE: Animation pattern, timing, and rendering logic are IDENTICAL for all players
+                    # Only the sprite source differs (bomb_sprites vs bomb2_sprites vs bomb3_sprites vs bomb4_sprites)
+                    if bomb.placed_by == 1:
+                        sprite_list = bomb_sprites
+                        sprite_loaded = bomb_sprite_loaded
+                    elif bomb.placed_by == 2:
+                        sprite_list = bomb2_sprites
+                        sprite_loaded = bomb2_sprite_loaded
+                    elif bomb.placed_by == 3:
+                        sprite_list = bomb3_sprites
+                        sprite_loaded = bomb3_sprite_loaded
+                    elif bomb.placed_by == 4:
+                        sprite_list = bomb4_sprites
+                        sprite_loaded = bomb4_sprite_loaded
+                    else:
+                        sprite_list = bomb_sprites
+                        sprite_loaded = bomb_sprite_loaded
                     
                     if sprite_loaded and len(sprite_list) >= 3:
                         # Calculate animation frame based on time elapsed since bomb was placed
@@ -1995,6 +2519,12 @@ def draw_thrown_bombs(current_time):
                         # Use different colors for different players
                         if bomb.placed_by == 2:
                             pygame.draw.circle(window, BLUE, (int(draw_x), int(draw_y_pos)), CELL_SIZE // 3)
+                            pygame.draw.circle(window, BLACK, (int(draw_x), int(draw_y_pos)), CELL_SIZE // 6)
+                        elif bomb.placed_by == 3:
+                            pygame.draw.circle(window, GREEN, (int(draw_x), int(draw_y_pos)), CELL_SIZE // 3)
+                            pygame.draw.circle(window, BLACK, (int(draw_x), int(draw_y_pos)), CELL_SIZE // 6)
+                        elif bomb.placed_by == 4:
+                            pygame.draw.circle(window, YELLOW, (int(draw_x), int(draw_y_pos)), CELL_SIZE // 3)
                             pygame.draw.circle(window, BLACK, (int(draw_x), int(draw_y_pos)), CELL_SIZE // 6)
                         else:
                             pygame.draw.circle(window, ORANGE, (int(draw_x), int(draw_y_pos)), CELL_SIZE // 3)
@@ -2242,6 +2772,10 @@ def get_explosion_cells(bomb):
         explosion_range = player1.explosion_range
     elif bomb.placed_by == 2 and player2:
         explosion_range = player2.explosion_range
+    elif bomb.placed_by == 3 and player3:
+        explosion_range = player3.explosion_range
+    elif bomb.placed_by == 4 and player4:
+        explosion_range = player4.explosion_range
     
     # Add cells in each direction
     for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
@@ -2273,6 +2807,8 @@ def get_explosion_visualization_cells(bomb):
         explosion_range = player1.explosion_range
     elif bomb.placed_by == 2 and player2:
         explosion_range = player2.explosion_range
+    elif bomb.placed_by == 3 and player3:
+        explosion_range = player3.explosion_range
     
     # Add cells in each direction
     for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
@@ -2324,6 +2860,9 @@ def reset_game():
         player1.moving = False
         player1.game_over = False
         player1.death_time = None
+        player1.move_speed = 3.0  # Reset movement speed to default
+        player1.explosion_range = 2  # Reset explosion range to default
+        player1.invincible = False  # Reset invincibility
     
     if player2:
         player2.x = (GRID_WIDTH - 2) * CELL_SIZE + CELL_SIZE // 2
@@ -2340,6 +2879,47 @@ def reset_game():
         player2.moving = False
         player2.game_over = False
         player2.death_time = None
+        player2.move_speed = 3.0  # Reset movement speed to default
+        player2.explosion_range = 2  # Reset explosion range to default
+        player2.invincible = False  # Reset invincibility
+    
+    if player3:
+        player3.x = (GRID_WIDTH - 2) * CELL_SIZE + CELL_SIZE // 2
+        player3.y = 1 * CELL_SIZE + CELL_SIZE // 2
+        player3.max_bombs = 1
+        player3.can_kick = False
+        player3.has_glove = False
+        player3.thrown_bomb = None
+        player3.is_throwing = False
+        player3.glove_pickup_animation_start_time = None
+        player3.glove_pickup_animation_direction = None
+        player3.glove_pickup_bomb = None
+        player3.direction = 'down'
+        player3.moving = False
+        player3.game_over = False
+        player3.death_time = None
+        player3.move_speed = 3.0  # Reset movement speed to default
+        player3.explosion_range = 2  # Reset explosion range to default
+        player3.invincible = False  # Reset invincibility
+    
+    if player4:
+        player4.x = 1 * CELL_SIZE + CELL_SIZE // 2
+        player4.y = (GRID_HEIGHT - 2) * CELL_SIZE + CELL_SIZE // 2
+        player4.max_bombs = 1
+        player4.can_kick = False
+        player4.has_glove = False
+        player4.thrown_bomb = None
+        player4.is_throwing = False
+        player4.glove_pickup_animation_start_time = None
+        player4.glove_pickup_animation_direction = None
+        player4.glove_pickup_bomb = None
+        player4.direction = 'down'
+        player4.moving = False
+        player4.game_over = False
+        player4.death_time = None
+        player4.move_speed = 3.0  # Reset movement speed to default
+        player4.explosion_range = 2  # Reset explosion range to default
+        player4.invincible = False  # Reset invincibility
     
     # Clear all bombs
     bombs = []
@@ -2406,6 +2986,16 @@ def explode_bomb(bomb, current_time, check_player_death=True):
                     if not player2.invincible:
                         player2.game_over = True
                         player2.death_time = current_time
+            if player3 and not player3.game_over:
+                if check_player_in_explosion(player3.x, player3.y, bomb.explosion_cells):
+                    if not player3.invincible:
+                        player3.game_over = True
+                        player3.death_time = current_time
+            if player4 and not player4.game_over:
+                if check_player_in_explosion(player4.x, player4.y, bomb.explosion_cells):
+                    if not player4.invincible:
+                        player4.game_over = True
+                        player4.death_time = current_time
         
         # Mark destructible walls for breaking animation instead of immediately removing
         for x, y in bomb.explosion_cells:
@@ -2517,6 +3107,10 @@ def draw_hitboxes():
         pygame.draw.circle(window, RED, (int(player1.x), int(player1.y)), PLAYER_RADIUS, 2)
     if player2:
         pygame.draw.circle(window, BLUE, (int(player2.x), int(player2.y)), PLAYER_RADIUS, 2)
+    if player3:
+        pygame.draw.circle(window, GREEN, (int(player3.x), int(player3.y)), PLAYER_RADIUS, 2)
+    if player4:
+        pygame.draw.circle(window, YELLOW, (int(player4.x), int(player4.y)), PLAYER_RADIUS, 2)
     
     # Draw bomb hitboxes (cell-sized rectangles)
     for bomb in bombs:
@@ -2559,7 +3153,14 @@ def draw_player(player, current_time=None):
     
     # Check if we should show death animation
     # Choose appropriate death sprites based on player number
-    player_death_sprites = death_sprites2 if player.player_num == 2 and death_sprites2_loaded else (death_sprites if death_sprites else [])
+    if player.player_num == 2 and death_sprites2_loaded:
+        player_death_sprites = death_sprites2
+    elif player.player_num == 3 and death_sprites3_loaded:
+        player_death_sprites = death_sprites3
+    elif player.player_num == 4 and death_sprites4_loaded:
+        player_death_sprites = death_sprites4
+    else:
+        player_death_sprites = death_sprites if death_sprites else []
     if player.game_over and player.death_time is not None and current_time is not None and player_death_sprites:
         # Death animation: 5 spins, getting slower
         # Each spin has 4 frames: front, right, back, left (20 frames total)
@@ -2698,8 +3299,18 @@ def draw_player(player, current_time=None):
     # Check if we should show glove pickup animation
     # Animation plays when: player has glove, is standing on bomb
     # Choose appropriate glove pickup sprites based on player number
-    player_glove_sprites = glove_pickup_sprites2 if player.player_num == 2 and glove_pickup_sprites2_loaded else (glove_pickup_sprites if glove_pickup_sprites_loaded else {})
-    player_glove_sprites_loaded = (player.player_num == 2 and glove_pickup_sprites2_loaded) or (player.player_num == 1 and glove_pickup_sprites_loaded)
+    if player.player_num == 2 and glove_pickup_sprites2_loaded:
+        player_glove_sprites = glove_pickup_sprites2
+        player_glove_sprites_loaded = True
+    elif player.player_num == 3 and glove_pickup_sprites3_loaded:
+        player_glove_sprites = glove_pickup_sprites3
+        player_glove_sprites_loaded = True
+    elif player.player_num == 4 and glove_pickup_sprites4_loaded:
+        player_glove_sprites = glove_pickup_sprites4
+        player_glove_sprites_loaded = True
+    else:
+        player_glove_sprites = glove_pickup_sprites if glove_pickup_sprites_loaded else {}
+        player_glove_sprites_loaded = (player.player_num == 1 and glove_pickup_sprites_loaded)
     
     if (player.glove_pickup_animation_start_time is not None and player.glove_pickup_animation_direction is not None and 
         current_time is not None and player_glove_sprites_loaded and 
@@ -3050,10 +3661,23 @@ def draw_player(player, current_time=None):
             # Draw the bomb in front of the player sprite during pickup animation
             if player.glove_pickup_bomb is not None:
                 # Choose sprite list based on which player is picking up the bomb
-                # NOTE: Animation and rendering logic are IDENTICAL for both players
-                # Only the sprite source differs (bomb_sprites vs bomb2_sprites)
-                sprite_list = bomb_sprites if player.player_num == 1 else bomb2_sprites
-                sprite_loaded = bomb_sprite_loaded if player.player_num == 1 else bomb2_sprite_loaded
+                # NOTE: Animation and rendering logic are IDENTICAL for all players
+                # Only the sprite source differs (bomb_sprites vs bomb2_sprites vs bomb3_sprites vs bomb4_sprites)
+                if player.player_num == 1:
+                    sprite_list = bomb_sprites
+                    sprite_loaded = bomb_sprite_loaded
+                elif player.player_num == 2:
+                    sprite_list = bomb2_sprites
+                    sprite_loaded = bomb2_sprite_loaded
+                elif player.player_num == 3:
+                    sprite_list = bomb3_sprites
+                    sprite_loaded = bomb3_sprite_loaded
+                elif player.player_num == 4:
+                    sprite_list = bomb4_sprites
+                    sprite_loaded = bomb4_sprite_loaded
+                else:
+                    sprite_list = bomb_sprites
+                    sprite_loaded = bomb_sprite_loaded
                 
                 if sprite_loaded and len(sprite_list) >= 3:
                     # Use first bomb sprite frame (index 0) during pickup - same for both players
@@ -3065,6 +3689,12 @@ def draw_player(player, current_time=None):
                     # Use different colors for different players
                     if player.player_num == 2:
                         pygame.draw.circle(window, BLUE, (int(player.glove_pickup_bomb.pixel_x), int(player.glove_pickup_bomb.pixel_y)), CELL_SIZE // 3)
+                        pygame.draw.circle(window, BLACK, (int(player.glove_pickup_bomb.pixel_x), int(player.glove_pickup_bomb.pixel_y)), CELL_SIZE // 6)
+                    elif player.player_num == 3:
+                        pygame.draw.circle(window, GREEN, (int(player.glove_pickup_bomb.pixel_x), int(player.glove_pickup_bomb.pixel_y)), CELL_SIZE // 3)
+                        pygame.draw.circle(window, BLACK, (int(player.glove_pickup_bomb.pixel_x), int(player.glove_pickup_bomb.pixel_y)), CELL_SIZE // 6)
+                    elif player.player_num == 4:
+                        pygame.draw.circle(window, YELLOW, (int(player.glove_pickup_bomb.pixel_x), int(player.glove_pickup_bomb.pixel_y)), CELL_SIZE // 3)
                         pygame.draw.circle(window, BLACK, (int(player.glove_pickup_bomb.pixel_x), int(player.glove_pickup_bomb.pixel_y)), CELL_SIZE // 6)
                     else:
                         pygame.draw.circle(window, ORANGE, (int(player.glove_pickup_bomb.pixel_x), int(player.glove_pickup_bomb.pixel_y)), CELL_SIZE // 3)
@@ -3248,7 +3878,7 @@ def main():
                         sudden_death_hurry_sound_start_time = None
                 elif event.key == pygame.K_SPACE:
                     # Player 1 bomb placement
-                    if player1:
+                    if player1 and not player1.game_over:
                         death_animation_playing = False
                         if player1.game_over and player1.death_time is not None:
                             DEATH_ANIMATION_DURATION = 4600
@@ -3374,7 +4004,7 @@ def main():
                                             place_bomb_sound.play()
                 elif event.key == pygame.K_e:
                     # Player 2 bomb placement (same logic as player 1)
-                    if player2:
+                    if player2 and not player2.game_over:
                         death_animation_playing = False
                         if player2.game_over and player2.death_time is not None:
                             DEATH_ANIMATION_DURATION = 4600
@@ -3498,6 +4128,258 @@ def main():
                                         bombs.append(new_bomb)
                                         if place_bomb_sound:
                                             place_bomb_sound.play()
+                elif event.key == pygame.K_o:
+                    # Player 3 bomb placement (same logic as player 1 and 2)
+                    if player3 and not player3.game_over:
+                        death_animation_playing = False
+                        if player3.game_over and player3.death_time is not None:
+                            DEATH_ANIMATION_DURATION = 4600
+                            death_animation_playing = (current_time - player3.death_time) < DEATH_ANIMATION_DURATION
+                        if not paused and not death_animation_playing:
+                            player_grid_x = int(player3.x // CELL_SIZE)
+                            player_grid_y = int(player3.y // CELL_SIZE)
+                            player_bomb_check = None
+                            for bomb in bombs:
+                                if bomb.exploded:
+                                    continue
+                                bomb_radius = CELL_SIZE // 2
+                                dx = player3.x - bomb.pixel_x
+                                dy = player3.y - bomb.pixel_y
+                                distance_squared = dx * dx + dy * dy
+                                if distance_squared < (PLAYER_RADIUS + bomb_radius) * (PLAYER_RADIUS + bomb_radius):
+                                    player_bomb_check = bomb
+                                    break
+                            
+                            animation_started = False
+                            if (player3.has_glove and player_bomb_check is not None and player3.direction in ['up', 'right', 'down', 'left'] and 
+                                not player3.is_throwing and player3.glove_pickup_animation_start_time is None):
+                                player3.glove_pickup_animation_start_time = current_time
+                                player3.glove_pickup_animation_direction = player3.direction
+                                player3.glove_pickup_bomb = player_bomb_check
+                                animation_started = True
+                            
+                            if not player3.is_throwing and player3.has_glove and not animation_started:
+                                front_x = player_grid_x
+                                front_y = player_grid_y
+                                if player3.direction == 'up':
+                                    front_y -= 1
+                                elif player3.direction == 'down':
+                                    front_y += 1
+                                elif player3.direction == 'left':
+                                    front_x -= 1
+                                elif player3.direction == 'right':
+                                    front_x += 1
+                                
+                                for bomb in bombs:
+                                    if (not bomb.exploded and bomb.grid_x == front_x and bomb.grid_y == front_y and
+                                        not bomb.is_thrown and not bomb.is_moving):
+                                        if player3.direction == 'up':
+                                            dx_dir = 0
+                                            dy_dir = -1
+                                        elif player3.direction == 'down':
+                                            dx_dir = 0
+                                            dy_dir = 1
+                                        elif player3.direction == 'left':
+                                            dx_dir = -1
+                                            dy_dir = 0
+                                        elif player3.direction == 'right':
+                                            dx_dir = 1
+                                            dy_dir = 0
+                                        else:
+                                            dx_dir = 0
+                                            dy_dir = 0
+                                        
+                                        initial_distance = 3
+                                        initial_target_grid_x = (player_grid_x + dx_dir * initial_distance) % GRID_WIDTH
+                                        initial_target_grid_y = (player_grid_y + dy_dir * initial_distance) % GRID_HEIGHT
+                                        
+                                        throw_x = None
+                                        throw_y = None
+                                        max_search_distance = GRID_WIDTH + GRID_HEIGHT
+                                        
+                                        for distance in range(initial_distance, max_search_distance + 1):
+                                            check_x = (player_grid_x + dx_dir * distance) % GRID_WIDTH
+                                            check_y = (player_grid_y + dy_dir * distance) % GRID_HEIGHT
+                                            
+                                            has_block = (check_x, check_y) in walls or (check_x, check_y) in destructible_walls
+                                            
+                                            has_bomb = False
+                                            for other_bomb in bombs:
+                                                if other_bomb != bomb and other_bomb.grid_x == check_x and other_bomb.grid_y == check_y and not other_bomb.exploded:
+                                                    has_bomb = True
+                                                    break
+                                            
+                                            if not has_block and not has_bomb:
+                                                throw_x = check_x
+                                                throw_y = check_y
+                                                break
+                                        
+                                        if throw_x is not None and throw_y is not None:
+                                            player3.glove_pickup_animation_start_time = current_time
+                                            player3.glove_pickup_animation_direction = player3.direction
+                                            player3.glove_pickup_bomb = bomb
+                                            player3.is_throwing = True
+                                            player3.thrown_bomb = bomb
+                                            
+                                            bomb._throw_target_x = throw_x * CELL_SIZE + CELL_SIZE // 2
+                                            bomb._throw_target_y = throw_y * CELL_SIZE + CELL_SIZE // 2
+                                            bomb._initial_target_x = initial_target_grid_x * CELL_SIZE + CELL_SIZE // 2
+                                            bomb._initial_target_y = initial_target_grid_y * CELL_SIZE + CELL_SIZE // 2
+                                            bomb._throw_direction_x = dx_dir
+                                            bomb._throw_direction_y = dy_dir
+                                            
+                                            bomb._original_pixel_x = bomb.pixel_x
+                                            bomb._original_pixel_y = bomb.pixel_y
+                                            break
+                            
+                            if not player3.is_throwing:
+                                # Count only player 3's active bombs
+                                active_bomb_count = 0
+                                for bomb in bombs:
+                                    if not bomb.exploded and bomb.placed_by == 3:
+                                        active_bomb_count += 1
+                                
+                                if active_bomb_count < player3.max_bombs:
+                                    grid_x = int(player3.x // CELL_SIZE)
+                                    grid_y = int(player3.y // CELL_SIZE)
+                                    
+                                    bomb_exists = False
+                                    for bomb in bombs:
+                                        if bomb.grid_x == grid_x and bomb.grid_y == grid_y and not bomb.exploded:
+                                            bomb_exists = True
+                                            break
+                                    
+                                    if not bomb_exists and (grid_x, grid_y) not in walls and (grid_x, grid_y) not in destructible_walls:
+                                        new_bomb = Bomb(grid_x, grid_y, current_time, placed_by=3)
+                                        bombs.append(new_bomb)
+                                        if place_bomb_sound:
+                                            place_bomb_sound.play()
+                elif event.key == pygame.K_KP9:
+                    # Player 4 bomb placement (same logic as other players)
+                    if player4 and not player4.game_over:
+                        death_animation_playing = False
+                        if player4.game_over and player4.death_time is not None:
+                            DEATH_ANIMATION_DURATION = 4600
+                            death_animation_playing = (current_time - player4.death_time) < DEATH_ANIMATION_DURATION
+                        if not paused and not death_animation_playing:
+                            player_grid_x = int(player4.x // CELL_SIZE)
+                            player_grid_y = int(player4.y // CELL_SIZE)
+                            player_bomb_check = None
+                            for bomb in bombs:
+                                if bomb.exploded:
+                                    continue
+                                bomb_radius = CELL_SIZE // 2
+                                dx = player4.x - bomb.pixel_x
+                                dy = player4.y - bomb.pixel_y
+                                distance_squared = dx * dx + dy * dy
+                                if distance_squared < (PLAYER_RADIUS + bomb_radius) * (PLAYER_RADIUS + bomb_radius):
+                                    player_bomb_check = bomb
+                                    break
+                            
+                            animation_started = False
+                            if (player4.has_glove and player_bomb_check is not None and player4.direction in ['up', 'right', 'down', 'left'] and 
+                                not player4.is_throwing and player4.glove_pickup_animation_start_time is None):
+                                player4.glove_pickup_animation_start_time = current_time
+                                player4.glove_pickup_animation_direction = player4.direction
+                                player4.glove_pickup_bomb = player_bomb_check
+                                animation_started = True
+                            
+                            if not player4.is_throwing and player4.has_glove and not animation_started:
+                                front_x = player_grid_x
+                                front_y = player_grid_y
+                                if player4.direction == 'up':
+                                    front_y -= 1
+                                elif player4.direction == 'down':
+                                    front_y += 1
+                                elif player4.direction == 'left':
+                                    front_x -= 1
+                                elif player4.direction == 'right':
+                                    front_x += 1
+                                
+                                for bomb in bombs:
+                                    if (not bomb.exploded and bomb.grid_x == front_x and bomb.grid_y == front_y and
+                                        not bomb.is_thrown and not bomb.is_moving):
+                                        if player4.direction == 'up':
+                                            dx_dir = 0
+                                            dy_dir = -1
+                                        elif player4.direction == 'down':
+                                            dx_dir = 0
+                                            dy_dir = 1
+                                        elif player4.direction == 'left':
+                                            dx_dir = -1
+                                            dy_dir = 0
+                                        elif player4.direction == 'right':
+                                            dx_dir = 1
+                                            dy_dir = 0
+                                        else:
+                                            dx_dir = 0
+                                            dy_dir = 0
+                                        
+                                        initial_distance = 3
+                                        initial_target_grid_x = (player_grid_x + dx_dir * initial_distance) % GRID_WIDTH
+                                        initial_target_grid_y = (player_grid_y + dy_dir * initial_distance) % GRID_HEIGHT
+                                        
+                                        throw_x = None
+                                        throw_y = None
+                                        max_search_distance = GRID_WIDTH + GRID_HEIGHT
+                                        
+                                        for distance in range(initial_distance, max_search_distance + 1):
+                                            check_x = (player_grid_x + dx_dir * distance) % GRID_WIDTH
+                                            check_y = (player_grid_y + dy_dir * distance) % GRID_HEIGHT
+                                            
+                                            has_block = (check_x, check_y) in walls or (check_x, check_y) in destructible_walls
+                                            
+                                            has_bomb = False
+                                            for other_bomb in bombs:
+                                                if other_bomb != bomb and other_bomb.grid_x == check_x and other_bomb.grid_y == check_y and not other_bomb.exploded:
+                                                    has_bomb = True
+                                                    break
+                                            
+                                            if not has_block and not has_bomb:
+                                                throw_x = check_x
+                                                throw_y = check_y
+                                                break
+                                        
+                                        if throw_x is not None and throw_y is not None:
+                                            player4.glove_pickup_animation_start_time = current_time
+                                            player4.glove_pickup_animation_direction = player4.direction
+                                            player4.glove_pickup_bomb = bomb
+                                            player4.is_throwing = True
+                                            player4.thrown_bomb = bomb
+                                            
+                                            bomb._throw_target_x = throw_x * CELL_SIZE + CELL_SIZE // 2
+                                            bomb._throw_target_y = throw_y * CELL_SIZE + CELL_SIZE // 2
+                                            bomb._initial_target_x = initial_target_grid_x * CELL_SIZE + CELL_SIZE // 2
+                                            bomb._initial_target_y = initial_target_grid_y * CELL_SIZE + CELL_SIZE // 2
+                                            bomb._throw_direction_x = dx_dir
+                                            bomb._throw_direction_y = dy_dir
+                                            
+                                            bomb._original_pixel_x = bomb.pixel_x
+                                            bomb._original_pixel_y = bomb.pixel_y
+                                            break
+                            
+                            if not player4.is_throwing:
+                                # Count only player 4's active bombs
+                                active_bomb_count = 0
+                                for bomb in bombs:
+                                    if not bomb.exploded and bomb.placed_by == 4:
+                                        active_bomb_count += 1
+                                
+                                if active_bomb_count < player4.max_bombs:
+                                    grid_x = int(player4.x // CELL_SIZE)
+                                    grid_y = int(player4.y // CELL_SIZE)
+                                    
+                                    bomb_exists = False
+                                    for bomb in bombs:
+                                        if bomb.grid_x == grid_x and bomb.grid_y == grid_y and not bomb.exploded:
+                                            bomb_exists = True
+                                            break
+                                    
+                                    if not bomb_exists and (grid_x, grid_y) not in walls and (grid_x, grid_y) not in destructible_walls:
+                                        new_bomb = Bomb(grid_x, grid_y, current_time, placed_by=4)
+                                        bombs.append(new_bomb)
+                                        if place_bomb_sound:
+                                            place_bomb_sound.play()
         
         # Update sudden death mechanic - handle hurry animation and sound sequence first
         if sudden_death_active and not paused and sudden_death_hurry_start_time is not None:
@@ -3570,6 +4452,22 @@ def main():
                                 player2.game_over = True
                                 player2.death_time = current_time
                     
+                    if player3 and not player3.game_over:
+                        player3_grid_x = int(player3.x // CELL_SIZE)
+                        player3_grid_y = int(player3.y // CELL_SIZE)
+                        if player3_grid_x == next_pos[0] and player3_grid_y == next_pos[1]:
+                            if not player3.invincible:
+                                player3.game_over = True
+                                player3.death_time = current_time
+                    
+                    if player4 and not player4.game_over:
+                        player4_grid_x = int(player4.x // CELL_SIZE)
+                        player4_grid_y = int(player4.y // CELL_SIZE)
+                        if player4_grid_x == next_pos[0] and player4_grid_y == next_pos[1]:
+                            if not player4.invincible:
+                                player4.game_over = True
+                                player4.death_time = current_time
+                    
                     # Remove any bombs at this position
                     bombs_to_remove = []
                     for bomb in bombs:
@@ -3613,11 +4511,29 @@ def main():
             draw_powerups(frozen_time)
             draw_item_explosions(frozen_time)
             # Draw the players - sort by Y position so higher Y (closer to bottom) is drawn on top
+            # Only draw players who are alive or still animating their death
             active_players = []
+            DEATH_ANIMATION_DURATION = 4600
             if player1:
-                active_players.append(player1)
+                if not player1.game_over:
+                    active_players.append(player1)
+                elif player1.death_time is not None and (frozen_time - player1.death_time) < DEATH_ANIMATION_DURATION:
+                    active_players.append(player1)
             if player2:
-                active_players.append(player2)
+                if not player2.game_over:
+                    active_players.append(player2)
+                elif player2.death_time is not None and (frozen_time - player2.death_time) < DEATH_ANIMATION_DURATION:
+                    active_players.append(player2)
+            if player3:
+                if not player3.game_over:
+                    active_players.append(player3)
+                elif player3.death_time is not None and (frozen_time - player3.death_time) < DEATH_ANIMATION_DURATION:
+                    active_players.append(player3)
+            if player4:
+                if not player4.game_over:
+                    active_players.append(player4)
+                elif player4.death_time is not None and (frozen_time - player4.death_time) < DEATH_ANIMATION_DURATION:
+                    active_players.append(player4)
             
             # Sort by Y position (lower Y first, higher Y last) so higher Y appears on top
             active_players.sort(key=lambda p: p.y)
@@ -3655,16 +4571,26 @@ def main():
         bombs = [bomb for bomb in bombs if not bomb.exploded or bomb.is_exploding(current_time)]
         
         # Handle game over - wait for death animation, then reset
-        # Check both players for game over
-        any_player_dead = (player1 and player1.game_over) or (player2 and player2.game_over)
-        if any_player_dead:
-            # Check if death animations are complete
-            DEATH_ANIMATION_DURATION = 4600
-            p1_dead = player1 and player1.game_over and player1.death_time is not None and (current_time - player1.death_time) < DEATH_ANIMATION_DURATION
-            p2_dead = player2 and player2.game_over and player2.death_time is not None and (current_time - player2.death_time) < DEATH_ANIMATION_DURATION
+        # Check how many players have died
+        DEATH_ANIMATION_DURATION = 4600
+        p1_dead = player1 and player1.game_over
+        p2_dead = player2 and player2.game_over
+        p3_dead = player3 and player3.game_over
+        p4_dead = player4 and player4.game_over
+        
+        dead_count = sum([p1_dead, p2_dead, p3_dead, p4_dead])
+        
+        # Only restart when 3 players have died
+        if dead_count >= 3:
+            # Check if death animations are complete for all dead players
+            p1_death_animating = p1_dead and player1.death_time is not None and (current_time - player1.death_time) < DEATH_ANIMATION_DURATION
+            p2_death_animating = p2_dead and player2.death_time is not None and (current_time - player2.death_time) < DEATH_ANIMATION_DURATION
+            p3_death_animating = p3_dead and player3.death_time is not None and (current_time - player3.death_time) < DEATH_ANIMATION_DURATION
+            p4_death_animating = p4_dead and player4.death_time is not None and (current_time - player4.death_time) < DEATH_ANIMATION_DURATION
             
-            if not p1_dead and not p2_dead:
-                # Both death animations complete, reset game
+            # Only reset if all death animations are complete
+            if not p1_death_animating and not p2_death_animating and not p3_death_animating and not p4_death_animating:
+                # All death animations complete, reset game
                 reset_game()
                 if player1:
                     player1.game_over = False
@@ -3672,6 +4598,12 @@ def main():
                 if player2:
                     player2.game_over = False
                     player2.death_time = None
+                if player3:
+                    player3.game_over = False
+                    player3.death_time = None
+                if player4:
+                    player4.game_over = False
+                    player4.death_time = None
                 restart_music()
                 continue  # Skip rest of frame after reset
         
@@ -3679,19 +4611,27 @@ def main():
         # Also skip if death animation is still playing
         p1_death_animation_playing = False
         p2_death_animation_playing = False
+        p3_death_animation_playing = False
+        p4_death_animation_playing = False
         if player1 and player1.game_over and player1.death_time is not None:
             DEATH_ANIMATION_DURATION = 4600
             p1_death_animation_playing = (current_time - player1.death_time) < DEATH_ANIMATION_DURATION
         if player2 and player2.game_over and player2.death_time is not None:
             DEATH_ANIMATION_DURATION = 4600
             p2_death_animation_playing = (current_time - player2.death_time) < DEATH_ANIMATION_DURATION
+        if player3 and player3.game_over and player3.death_time is not None:
+            DEATH_ANIMATION_DURATION = 4600
+            p3_death_animation_playing = (current_time - player3.death_time) < DEATH_ANIMATION_DURATION
+        if player4 and player4.game_over and player4.death_time is not None:
+            DEATH_ANIMATION_DURATION = 4600
+            p4_death_animation_playing = (current_time - player4.death_time) < DEATH_ANIMATION_DURATION
         
         if not paused:
             # Check for held keys (allows continuous smooth movement)
             keys = pygame.key.get_pressed()
             
             # Process Player 1 movement (Arrow keys + Space)
-            if player1 and not p1_death_animation_playing:
+            if player1 and not player1.game_over and not p1_death_animation_playing:
                 # Find which bomb (if any) player 1 is currently standing on
                 player_grid_x = int(player1.x // CELL_SIZE)
                 player_grid_y = int(player1.y // CELL_SIZE)
@@ -4032,7 +4972,7 @@ def main():
                 player1.thrown_bomb.update_grid_pos()
             
             # Process Player 2 movement (WASD + E)
-            if player2 and not p2_death_animation_playing:
+            if player2 and not player2.game_over and not p2_death_animation_playing:
                 # Find which bomb (if any) player 2 is currently standing on
                 player_grid_x = int(player2.x // CELL_SIZE)
                 player_grid_y = int(player2.y // CELL_SIZE)
@@ -4132,6 +5072,891 @@ def main():
                     player2.thrown_bomb.pixel_x = player2.x
                     player2.thrown_bomb.pixel_y = player2.y
                     player2.thrown_bomb.update_grid_pos()
+            
+            # Check if player 2's hitbox has fully left any bombs they were previously on
+            # This allows bombs to be kicked after the player has left them
+            if player2:
+                player2_left = player2.x - PLAYER_RADIUS
+                player2_right = player2.x + PLAYER_RADIUS
+                player2_top = player2.y - PLAYER_RADIUS
+                player2_bottom = player2.y + PLAYER_RADIUS
+                
+                for bomb in bombs:
+                    if bomb.exploded:
+                        continue
+                    # Get bomb boundaries (using pixel position)
+                    bomb_radius = CELL_SIZE // 2
+                    bomb_left = bomb.pixel_x - bomb_radius
+                    bomb_right = bomb.pixel_x + bomb_radius
+                    bomb_top = bomb.pixel_y - bomb_radius
+                    bomb_bottom = bomb.pixel_y + bomb_radius
+                    
+                    # Check if player's hitbox is completely outside the bomb's hitbox
+                    player2_fully_outside = (
+                        player2_right < bomb_left or  # Player is to the left of bomb
+                        player2_left > bomb_right or  # Player is to the right of bomb
+                        player2_bottom < bomb_top or  # Player is above bomb
+                        player2_top > bomb_bottom     # Player is below bomb
+                    )
+                    
+                    if player2_fully_outside:
+                        # Mark when player left the bomb (for delay before kicking)
+                        if bomb.left_time is None:
+                            bomb.left_time = current_time
+                        # Only allow kicking after delay has passed AND cooldown is over
+                        if current_time - bomb.left_time >= BOMB_KICK_DELAY and bomb.step_off_cooldown == 0:
+                            bomb.can_be_kicked = True
+                    else:
+                        # Player is back on the bomb, reset the leave time
+                        bomb.left_time = None
+                        bomb.can_be_kicked = False
+                        # Reset cooldown if player gets back on bomb
+                        bomb.step_off_cooldown = 0
+            
+            # Process Player 3 movement (IJKL + O)
+            if player3 and not player3.game_over and not p3_death_animation_playing:
+                # Find which bomb (if any) player 3 is currently standing on
+                player_grid_x3 = int(player3.x // CELL_SIZE)
+                player_grid_y3 = int(player3.y // CELL_SIZE)
+                player_bomb3 = None
+                for bomb in bombs:
+                    if bomb.exploded:
+                        continue
+                    bomb_radius = CELL_SIZE // 2
+                    dx = player3.x - bomb.pixel_x
+                    dy = player3.y - bomb.pixel_y
+                    distance_squared = dx * dx + dy * dy
+                    if distance_squared < (PLAYER_RADIUS + bomb_radius) * (PLAYER_RADIUS + bomb_radius):
+                        player_bomb3 = bomb
+                        break
+                
+                # Check if player collected a powerup
+                player_pos3 = (player_grid_x3, player_grid_y3)
+                if player_pos3 in powerups:
+                    powerup_type = powerups[player_pos3]
+                    if powerup_type == 'bomb_up':
+                        player3.max_bombs += 1
+                        if item_get_sound:
+                            item_get_sound.play()
+                    elif powerup_type == 'speed_up':
+                        player3.move_speed += 0.75
+                        if item_get_sound:
+                            item_get_sound.play()
+                    elif powerup_type == 'fire_up':
+                        player3.explosion_range += 1
+                        if item_get_sound:
+                            item_get_sound.play()
+                    elif powerup_type == 'kick':
+                        player3.can_kick = True
+                        if kick_voice_sound:
+                            kick_voice_sound.play()
+                    elif powerup_type == 'glove':
+                        player3.has_glove = True
+                        if item_get_sound:
+                            item_get_sound.play()
+                    powerups.pop(player_pos3)
+                
+                # Store old position
+                old_x3 = player3.x
+                old_y3 = player3.y
+                
+                # Calculate new position
+                new_x3 = player3.x
+                new_y3 = player3.y
+                
+                # Move player with IJKL keys
+                player3.moving = False
+                if player3.glove_pickup_animation_start_time is not None:
+                    player3.moving = False
+                else:
+                    if keys[pygame.K_i]:
+                        new_y3 = player3.y - player3.move_speed
+                        player3.direction = 'up'
+                        player3.moving = True
+                    elif keys[pygame.K_k]:
+                        new_y3 = player3.y + player3.move_speed
+                        player3.direction = 'down'
+                        player3.moving = True
+                    
+                    if keys[pygame.K_j]:
+                        new_x3 = player3.x - player3.move_speed
+                        player3.direction = 'left'
+                        player3.moving = True
+                    elif keys[pygame.K_l]:
+                        new_x3 = player3.x + player3.move_speed
+                        player3.direction = 'right'
+                        player3.moving = True
+                
+                # Collision checking for player 3
+                if player3.glove_pickup_animation_start_time is None:
+                    if not check_collision(new_x3, player3.y, exclude_bomb=player_bomb3):
+                        player3.x = new_x3
+                    
+                    new_player_grid_x3 = int(player3.x // CELL_SIZE)
+                    new_player_grid_y3 = int(player3.y // CELL_SIZE)
+                    new_player_bomb3 = None
+                    for bomb in bombs:
+                        if bomb.exploded:
+                            continue
+                        bomb_radius = CELL_SIZE // 2
+                        dx = player3.x - bomb.pixel_x
+                        dy = player3.y - bomb.pixel_y
+                        distance_squared = dx * dx + dy * dy
+                        if distance_squared < (PLAYER_RADIUS + bomb_radius) * (PLAYER_RADIUS + bomb_radius):
+                            new_player_bomb3 = bomb
+                            break
+                    
+                    if not check_collision(player3.x, new_y3, exclude_bomb=new_player_bomb3):
+                        player3.y = new_y3
+                
+                # Update thrown bomb for player 3
+                if player3.is_throwing and player3.thrown_bomb is not None and not player3.thrown_bomb.is_moving:
+                    player3.thrown_bomb.pixel_x = player3.x
+                    player3.thrown_bomb.pixel_y = player3.y
+                    player3.thrown_bomb.update_grid_pos()
+            
+            # Check if player 3's hitbox has fully left any bombs they were previously on
+            # This allows bombs to be kicked after the player has left them
+            if player3:
+                player3_left = player3.x - PLAYER_RADIUS
+                player3_right = player3.x + PLAYER_RADIUS
+                player3_top = player3.y - PLAYER_RADIUS
+                player3_bottom = player3.y + PLAYER_RADIUS
+                
+                for bomb in bombs:
+                    if bomb.exploded:
+                        continue
+                    # Get bomb boundaries (using pixel position)
+                    bomb_radius = CELL_SIZE // 2
+                    bomb_left = bomb.pixel_x - bomb_radius
+                    bomb_right = bomb.pixel_x + bomb_radius
+                    bomb_top = bomb.pixel_y - bomb_radius
+                    bomb_bottom = bomb.pixel_y + bomb_radius
+                    
+                    # Check if player's hitbox is completely outside the bomb's hitbox
+                    player3_fully_outside = (
+                        player3_right < bomb_left or  # Player is to the left of bomb
+                        player3_left > bomb_right or  # Player is to the right of bomb
+                        player3_bottom < bomb_top or  # Player is above bomb
+                        player3_top > bomb_bottom     # Player is below bomb
+                    )
+                    
+                    if player3_fully_outside:
+                        # Mark when player left the bomb (for delay before kicking)
+                        if bomb.left_time is None:
+                            bomb.left_time = current_time
+                        # Only allow kicking after delay has passed AND cooldown is over
+                        if current_time - bomb.left_time >= BOMB_KICK_DELAY and bomb.step_off_cooldown == 0:
+                            bomb.can_be_kicked = True
+                    else:
+                        # Player is back on the bomb, reset the leave time
+                        bomb.left_time = None
+                        bomb.can_be_kicked = False
+                        # Reset cooldown if player gets back on bomb
+                        bomb.step_off_cooldown = 0
+            
+            # Check for bomb kicking for player 2 - when player moves into contact with a bomb, kick it away
+            # If player has kick ability and is moving, check if they're touching a bomb
+            if player2.can_kick and player2.moving:
+                # Check the target position the player is moving to
+                target_grid_x2 = int(new_x2 // CELL_SIZE)
+                target_grid_y2 = int(new_y2 // CELL_SIZE)
+                current_grid_x2 = int(player2.x // CELL_SIZE)
+                current_grid_y2 = int(player2.y // CELL_SIZE)
+                
+                # Don't kick if player is moving away from a bomb (stepping off)
+                # Check if we're moving AWAY from the bomb we're currently on
+                is_stepping_off_bomb2 = False
+                bomb_being_stepped_off2 = None
+                if player_bomb2 is not None:
+                    # Check if we're moving away from the bomb using pixel positions
+                    # Calculate distance from bomb before and after movement
+                    dx_before2 = player2.x - player_bomb2.pixel_x
+                    dy_before2 = player2.y - player_bomb2.pixel_y
+                    distance_before2 = math.sqrt(dx_before2 * dx_before2 + dy_before2 * dy_before2)
+                    
+                    dx_after2 = new_x2 - player_bomb2.pixel_x
+                    dy_after2 = new_y2 - player_bomb2.pixel_y
+                    distance_after2 = math.sqrt(dx_after2 * dx_after2 + dy_after2 * dy_after2)
+                    
+                    # If distance is increasing significantly, we're moving away from the bomb
+                    # Use a threshold to avoid false positives from small movements
+                    bomb_radius = CELL_SIZE // 2
+                    distance_threshold = 2.0  # Minimum distance increase to consider stepping off
+                    if distance_after2 > distance_before2 + distance_threshold and distance_before2 < (PLAYER_RADIUS + bomb_radius + 15):
+                        is_stepping_off_bomb2 = True
+                        bomb_being_stepped_off2 = player_bomb2
+                        # Set cooldown immediately when stepping off
+                        player_bomb2.step_off_cooldown = 15  # 15 frames cooldown
+                
+                # Always exclude the bomb we're stepping off from, even if detection failed
+                # Check if target cell has a bomb (that's not the one we're currently on)
+                for bomb in bombs:
+                    if bomb.exploded or bomb.is_moving:
+                        continue
+                    if bomb == player_bomb2:
+                        continue
+                    # Don't kick the bomb we're stepping off from
+                    if bomb == bomb_being_stepped_off2:
+                        continue
+                    # Don't kick if bomb is in step-off cooldown period
+                    if bomb.step_off_cooldown > 0:
+                        continue
+                    
+                    # If we're stepping off ANY bomb, skip ALL kick checks to prevent accidental kicks
+                    if is_stepping_off_bomb2:
+                        continue
+                    
+                    # Also check if this bomb was recently stepped off (extra safety check)
+                    if bomb == player_bomb2 and bomb.step_off_cooldown > 0:
+                        continue
+                    
+                    # Check if bomb is in target cell or adjacent to player
+                    bomb_in_target2 = (bomb.grid_x == target_grid_x2 and bomb.grid_y == target_grid_y2)
+                    bomb_adjacent2 = False
+                    if not bomb_in_target2:
+                        # Check if bomb is adjacent to current position
+                        bomb_dx2 = abs(bomb.grid_x - current_grid_x2)
+                        bomb_dy2 = abs(bomb.grid_y - current_grid_y2)
+                        bomb_adjacent2 = (bomb_dx2 == 1 and bomb_dy2 == 0) or (bomb_dx2 == 0 and bomb_dy2 == 1)
+                    
+                    if bomb_in_target2:
+                        # If bomb is in target cell, player is moving into it - allow kick
+                        # Always allow kicking when moving into a bomb's cell
+                        should_kick2 = True
+                    elif bomb_adjacent2:
+                        # For adjacent bombs, require can_be_kicked flag and check distance
+                        if not bomb.can_be_kicked:
+                            should_kick2 = False
+                        else:
+                            # Check distance from player to bomb (using pixel positions)
+                            # Use the closer of current or target position
+                            dx_current2 = player2.x - bomb.pixel_x
+                            dy_current2 = player2.y - bomb.pixel_y
+                            distance_current2 = math.sqrt(dx_current2 * dx_current2 + dy_current2 * dy_current2)
+                            
+                            dx_target2 = new_x2 - bomb.pixel_x
+                            dy_target2 = new_y2 - bomb.pixel_y
+                            distance_target2 = math.sqrt(dx_target2 * dx_target2 + dy_target2 * dy_target2)
+                            
+                            min_distance2 = min(distance_current2, distance_target2)
+                            # Allow kick if player is within reasonable distance (less than 1.5 cell sizes)
+                            should_kick2 = min_distance2 < CELL_SIZE * 1.5
+                    else:
+                        should_kick2 = False
+                    
+                    if should_kick2:
+                        # Player is moving into this bomb - kick it away
+                        # Determine direction from player to bomb, then kick opposite
+                        dx2 = bomb.grid_x - current_grid_x2
+                        dy2 = bomb.grid_y - current_grid_y2
+                        
+                        # Determine kick velocity
+                        kick_vel_x2 = 0.0
+                        kick_vel_y2 = 0.0
+                        if dx2 > 0:  # Bomb is to the right of player, kick right
+                            kick_vel_x2 = BOMB_KICK_SPEED
+                            kick_vel_y2 = 0.0
+                        elif dx2 < 0:  # Bomb is to the left of player, kick left
+                            kick_vel_x2 = -BOMB_KICK_SPEED
+                            kick_vel_y2 = 0.0
+                        elif dy2 > 0:  # Bomb is below player, kick down
+                            kick_vel_x2 = 0.0
+                            kick_vel_y2 = BOMB_KICK_SPEED
+                        elif dy2 < 0:  # Bomb is above player, kick up
+                            kick_vel_x2 = 0.0
+                            kick_vel_y2 = -BOMB_KICK_SPEED
+                        
+                        # Check if bomb can actually move before setting flag
+                        can_move2 = check_bomb_can_move(bomb, kick_vel_x2, kick_vel_y2)
+                        
+                        bomb.velocity_x = kick_vel_x2
+                        bomb.velocity_y = kick_vel_y2
+                        bomb.is_moving = True
+                        bomb.just_started_moving = can_move2  # Only set flag if bomb can actually move
+                        break
+                    
+                    # Also check adjacent cells for bombs when player is moving
+                    # But only if player is NOT currently standing on a bomb (to avoid kicking when stepping off)
+                    if player_bomb2 is None and not is_stepping_off_bomb2:
+                        adjacent_positions2 = [
+                            (current_grid_x2, current_grid_y2 - 1),  # Up
+                            (current_grid_x2, current_grid_y2 + 1),  # Down
+                            (current_grid_x2 - 1, current_grid_y2),  # Left
+                            (current_grid_x2 + 1, current_grid_y2),  # Right
+                        ]
+                        
+                        for adj_x2, adj_y2 in adjacent_positions2:
+                            for bomb in bombs:
+                                if bomb.exploded or bomb.is_moving:
+                                    continue
+                                # Check if bomb is at this adjacent position
+                                if bomb.grid_x != adj_x2 or bomb.grid_y != adj_y2:
+                                    continue
+                                # Don't kick the bomb we're stepping off from
+                                if bomb == bomb_being_stepped_off2:
+                                    continue
+                                # Only allow kicking if player has left this bomb's cell at least once and delay has passed
+                                if not bomb.can_be_kicked:
+                                    continue
+                                
+                                # Check distance from player to bomb (using pixel positions)
+                                # Use the closer of current or target position
+                                dx_current2 = player2.x - bomb.pixel_x
+                                dy_current2 = player2.y - bomb.pixel_y
+                                distance_current2 = math.sqrt(dx_current2 * dx_current2 + dy_current2 * dy_current2)
+                                
+                                dx_target2 = new_x2 - bomb.pixel_x
+                                dy_target2 = new_y2 - bomb.pixel_y
+                                distance_target2 = math.sqrt(dx_target2 * dx_target2 + dy_target2 * dy_target2)
+                                
+                                min_distance2 = min(distance_current2, distance_target2)
+                                # Allow kick if player is within reasonable distance (less than 1.5 cell sizes)
+                                if min_distance2 < CELL_SIZE * 1.5:
+                                    # Determine direction from player to bomb, then kick opposite
+                                    dx2 = bomb.grid_x - current_grid_x2
+                                    dy2 = bomb.grid_y - current_grid_y2
+                                    
+                                    # Determine kick velocity
+                                    kick_vel_x2 = 0.0
+                                    kick_vel_y2 = 0.0
+                                    if dx2 > 0:  # Bomb is to the right of player, kick right
+                                        kick_vel_x2 = BOMB_KICK_SPEED
+                                        kick_vel_y2 = 0.0
+                                    elif dx2 < 0:  # Bomb is to the left of player, kick left
+                                        kick_vel_x2 = -BOMB_KICK_SPEED
+                                        kick_vel_y2 = 0.0
+                                    elif dy2 > 0:  # Bomb is below player, kick down
+                                        kick_vel_x2 = 0.0
+                                        kick_vel_y2 = BOMB_KICK_SPEED
+                                    elif dy2 < 0:  # Bomb is above player, kick up
+                                        kick_vel_x2 = 0.0
+                                        kick_vel_y2 = -BOMB_KICK_SPEED
+                                    
+                                    # Check if bomb can actually move before setting flag
+                                    can_move2 = check_bomb_can_move(bomb, kick_vel_x2, kick_vel_y2)
+                                    
+                                    bomb.velocity_x = kick_vel_x2
+                                    bomb.velocity_y = kick_vel_y2
+                                    bomb.is_moving = True
+                                    bomb.just_started_moving = can_move2  # Only set flag if bomb can actually move
+                                    break
+            
+            # Check for bomb kicking for player 3 - when player moves into contact with a bomb, kick it away
+            # If player has kick ability and is moving, check if they're touching a bomb
+            if player3.can_kick and player3.moving:
+                # Check the target position the player is moving to
+                target_grid_x3 = int(new_x3 // CELL_SIZE)
+                target_grid_y3 = int(new_y3 // CELL_SIZE)
+                current_grid_x3 = int(player3.x // CELL_SIZE)
+                current_grid_y3 = int(player3.y // CELL_SIZE)
+                
+                # Don't kick if player is moving away from a bomb (stepping off)
+                # Check if we're moving AWAY from the bomb we're currently on
+                is_stepping_off_bomb3 = False
+                bomb_being_stepped_off3 = None
+                if player_bomb3 is not None:
+                    # Check if we're moving away from the bomb using pixel positions
+                    # Calculate distance from bomb before and after movement
+                    dx_before3 = player3.x - player_bomb3.pixel_x
+                    dy_before3 = player3.y - player_bomb3.pixel_y
+                    distance_before3 = math.sqrt(dx_before3 * dx_before3 + dy_before3 * dy_before3)
+                    
+                    dx_after3 = new_x3 - player_bomb3.pixel_x
+                    dy_after3 = new_y3 - player_bomb3.pixel_y
+                    distance_after3 = math.sqrt(dx_after3 * dx_after3 + dy_after3 * dy_after3)
+                    
+                    # If distance is increasing significantly, we're moving away from the bomb
+                    # Use a threshold to avoid false positives from small movements
+                    bomb_radius = CELL_SIZE // 2
+                    distance_threshold = 2.0  # Minimum distance increase to consider stepping off
+                    if distance_after3 > distance_before3 + distance_threshold and distance_before3 < (PLAYER_RADIUS + bomb_radius + 15):
+                        is_stepping_off_bomb3 = True
+                        bomb_being_stepped_off3 = player_bomb3
+                        # Set cooldown immediately when stepping off
+                        player_bomb3.step_off_cooldown = 15  # 15 frames cooldown
+                
+                # Always exclude the bomb we're stepping off from, even if detection failed
+                # Check if target cell has a bomb (that's not the one we're currently on)
+                for bomb in bombs:
+                    if bomb.exploded or bomb.is_moving:
+                        continue
+                    if bomb == player_bomb3:
+                        continue
+                    # Don't kick the bomb we're stepping off from
+                    if bomb == bomb_being_stepped_off3:
+                        continue
+                    # Don't kick if bomb is in step-off cooldown period
+                    if bomb.step_off_cooldown > 0:
+                        continue
+                    
+                    # If we're stepping off ANY bomb, skip ALL kick checks to prevent accidental kicks
+                    if is_stepping_off_bomb3:
+                        continue
+                    
+                    # Also check if this bomb was recently stepped off (extra safety check)
+                    if bomb == player_bomb3 and bomb.step_off_cooldown > 0:
+                        continue
+                    
+                    # Check if bomb is in target cell or adjacent to player
+                    bomb_in_target3 = (bomb.grid_x == target_grid_x3 and bomb.grid_y == target_grid_y3)
+                    bomb_adjacent3 = False
+                    if not bomb_in_target3:
+                        # Check if bomb is adjacent to current position
+                        bomb_dx3 = abs(bomb.grid_x - current_grid_x3)
+                        bomb_dy3 = abs(bomb.grid_y - current_grid_y3)
+                        bomb_adjacent3 = (bomb_dx3 == 1 and bomb_dy3 == 0) or (bomb_dx3 == 0 and bomb_dy3 == 1)
+                    
+                    if bomb_in_target3:
+                        # If bomb is in target cell, player is moving into it - allow kick
+                        # Always allow kicking when moving into a bomb's cell
+                        should_kick3 = True
+                    elif bomb_adjacent3:
+                        # For adjacent bombs, require can_be_kicked flag and check distance
+                        if not bomb.can_be_kicked:
+                            should_kick3 = False
+                        else:
+                            # Check distance from player to bomb (using pixel positions)
+                            # Use the closer of current or target position
+                            dx_current3 = player3.x - bomb.pixel_x
+                            dy_current3 = player3.y - bomb.pixel_y
+                            distance_current3 = math.sqrt(dx_current3 * dx_current3 + dy_current3 * dy_current3)
+                            
+                            dx_target3 = new_x3 - bomb.pixel_x
+                            dy_target3 = new_y3 - bomb.pixel_y
+                            distance_target3 = math.sqrt(dx_target3 * dx_target3 + dy_target3 * dy_target3)
+                            
+                            min_distance3 = min(distance_current3, distance_target3)
+                            # Allow kick if player is within reasonable distance (less than 1.5 cell sizes)
+                            should_kick3 = min_distance3 < CELL_SIZE * 1.5
+                    else:
+                        should_kick3 = False
+                    
+                    if should_kick3:
+                        # Player is moving into this bomb - kick it away
+                        # Determine direction from player to bomb, then kick opposite
+                        dx3 = bomb.grid_x - current_grid_x3
+                        dy3 = bomb.grid_y - current_grid_y3
+                        
+                        # Determine kick velocity
+                        kick_vel_x3 = 0.0
+                        kick_vel_y3 = 0.0
+                        if dx3 > 0:  # Bomb is to the right of player, kick right
+                            kick_vel_x3 = BOMB_KICK_SPEED
+                            kick_vel_y3 = 0.0
+                        elif dx3 < 0:  # Bomb is to the left of player, kick left
+                            kick_vel_x3 = -BOMB_KICK_SPEED
+                            kick_vel_y3 = 0.0
+                        elif dy3 > 0:  # Bomb is below player, kick down
+                            kick_vel_x3 = 0.0
+                            kick_vel_y3 = BOMB_KICK_SPEED
+                        elif dy3 < 0:  # Bomb is above player, kick up
+                            kick_vel_x3 = 0.0
+                            kick_vel_y3 = -BOMB_KICK_SPEED
+                        
+                        # Check if bomb can actually move before setting flag
+                        can_move3 = check_bomb_can_move(bomb, kick_vel_x3, kick_vel_y3)
+                        
+                        bomb.velocity_x = kick_vel_x3
+                        bomb.velocity_y = kick_vel_y3
+                        bomb.is_moving = True
+                        bomb.just_started_moving = can_move3  # Only set flag if bomb can actually move
+                        break
+                    
+                    # Also check adjacent cells for bombs when player is moving
+                    # But only if player is NOT currently standing on a bomb (to avoid kicking when stepping off)
+                    if player_bomb3 is None and not is_stepping_off_bomb3:
+                        adjacent_positions3 = [
+                            (current_grid_x3, current_grid_y3 - 1),  # Up
+                            (current_grid_x3, current_grid_y3 + 1),  # Down
+                            (current_grid_x3 - 1, current_grid_y3),  # Left
+                            (current_grid_x3 + 1, current_grid_y3),  # Right
+                        ]
+                        
+                        for adj_x3, adj_y3 in adjacent_positions3:
+                            for bomb in bombs:
+                                if bomb.exploded or bomb.is_moving:
+                                    continue
+                                # Check if bomb is at this adjacent position
+                                if bomb.grid_x != adj_x3 or bomb.grid_y != adj_y3:
+                                    continue
+                                # Don't kick the bomb we're stepping off from
+                                if bomb == bomb_being_stepped_off3:
+                                    continue
+                                # Only allow kicking if player has left this bomb's cell at least once and delay has passed
+                                if not bomb.can_be_kicked:
+                                    continue
+                                
+                                # Check distance from player to bomb (using pixel positions)
+                                # Use the closer of current or target position
+                                dx_current3 = player3.x - bomb.pixel_x
+                                dy_current3 = player3.y - bomb.pixel_y
+                                distance_current3 = math.sqrt(dx_current3 * dx_current3 + dy_current3 * dy_current3)
+                                
+                                dx_target3 = new_x3 - bomb.pixel_x
+                                dy_target3 = new_y3 - bomb.pixel_y
+                                distance_target3 = math.sqrt(dx_target3 * dx_target3 + dy_target3 * dy_target3)
+                                
+                                min_distance3 = min(distance_current3, distance_target3)
+                                # Allow kick if player is within reasonable distance (less than 1.5 cell sizes)
+                                if min_distance3 < CELL_SIZE * 1.5:
+                                    # Determine direction from player to bomb, then kick opposite
+                                    dx3 = bomb.grid_x - current_grid_x3
+                                    dy3 = bomb.grid_y - current_grid_y3
+                                    
+                                    # Determine kick velocity
+                                    kick_vel_x3 = 0.0
+                                    kick_vel_y3 = 0.0
+                                    if dx3 > 0:  # Bomb is to the right of player, kick right
+                                        kick_vel_x3 = BOMB_KICK_SPEED
+                                        kick_vel_y3 = 0.0
+                                    elif dx3 < 0:  # Bomb is to the left of player, kick left
+                                        kick_vel_x3 = -BOMB_KICK_SPEED
+                                        kick_vel_y3 = 0.0
+                                    elif dy3 > 0:  # Bomb is below player, kick down
+                                        kick_vel_x3 = 0.0
+                                        kick_vel_y3 = BOMB_KICK_SPEED
+                                    elif dy3 < 0:  # Bomb is above player, kick up
+                                        kick_vel_x3 = 0.0
+                                        kick_vel_y3 = -BOMB_KICK_SPEED
+                                    
+                                    # Check if bomb can actually move before setting flag
+                                    can_move3 = check_bomb_can_move(bomb, kick_vel_x3, kick_vel_y3)
+                                    
+                                    bomb.velocity_x = kick_vel_x3
+                                    bomb.velocity_y = kick_vel_y3
+                                    bomb.is_moving = True
+                                    bomb.just_started_moving = can_move3  # Only set flag if bomb can actually move
+                                    break
+            
+            # Process Player 4 movement (Numpad 8/4/5/6 + 9)
+            if player4 and not player4.game_over and not p4_death_animation_playing:
+                # Find which bomb (if any) player 4 is currently standing on
+                player_grid_x4 = int(player4.x // CELL_SIZE)
+                player_grid_y4 = int(player4.y // CELL_SIZE)
+                player_bomb4 = None
+                for bomb in bombs:
+                    if bomb.exploded:
+                        continue
+                    bomb_radius = CELL_SIZE // 2
+                    dx = player4.x - bomb.pixel_x
+                    dy = player4.y - bomb.pixel_y
+                    distance_squared = dx * dx + dy * dy
+                    if distance_squared < (PLAYER_RADIUS + bomb_radius) * (PLAYER_RADIUS + bomb_radius):
+                        player_bomb4 = bomb
+                        break
+                
+                # Check if player collected a powerup
+                player_pos4 = (player_grid_x4, player_grid_y4)
+                if player_pos4 in powerups:
+                    powerup_type = powerups[player_pos4]
+                    if powerup_type == 'bomb_up':
+                        player4.max_bombs += 1
+                        if item_get_sound:
+                            item_get_sound.play()
+                    elif powerup_type == 'speed_up':
+                        player4.move_speed += 0.75
+                        if item_get_sound:
+                            item_get_sound.play()
+                    elif powerup_type == 'fire_up':
+                        player4.explosion_range += 1
+                        if item_get_sound:
+                            item_get_sound.play()
+                    elif powerup_type == 'kick':
+                        player4.can_kick = True
+                        if kick_voice_sound:
+                            kick_voice_sound.play()
+                    elif powerup_type == 'glove':
+                        player4.has_glove = True
+                        if item_get_sound:
+                            item_get_sound.play()
+                    powerups.pop(player_pos4)
+                
+                # Store old position
+                old_x4 = player4.x
+                old_y4 = player4.y
+                
+                # Calculate new position
+                new_x4 = player4.x
+                new_y4 = player4.y
+                
+                # Move player with numpad keys (8=up, 4=left, 5=down, 6=right)
+                player4.moving = False
+                if player4.glove_pickup_animation_start_time is not None:
+                    player4.moving = False
+                else:
+                    if keys[pygame.K_KP8]:  # Numpad 8 = up
+                        new_y4 = player4.y - player4.move_speed
+                        player4.direction = 'up'
+                        player4.moving = True
+                    elif keys[pygame.K_KP5]:  # Numpad 5 = down
+                        new_y4 = player4.y + player4.move_speed
+                        player4.direction = 'down'
+                        player4.moving = True
+                    
+                    if keys[pygame.K_KP4]:  # Numpad 4 = left
+                        new_x4 = player4.x - player4.move_speed
+                        player4.direction = 'left'
+                        player4.moving = True
+                    elif keys[pygame.K_KP6]:  # Numpad 6 = right
+                        new_x4 = player4.x + player4.move_speed
+                        player4.direction = 'right'
+                        player4.moving = True
+                
+                # Collision checking for player 4
+                if player4.glove_pickup_animation_start_time is None:
+                    if not check_collision(new_x4, player4.y, exclude_bomb=player_bomb4):
+                        player4.x = new_x4
+                    
+                    new_player_grid_x4 = int(player4.x // CELL_SIZE)
+                    new_player_grid_y4 = int(player4.y // CELL_SIZE)
+                    new_player_bomb4 = None
+                    for bomb in bombs:
+                        if bomb.exploded:
+                            continue
+                        bomb_radius = CELL_SIZE // 2
+                        dx = player4.x - bomb.pixel_x
+                        dy = player4.y - bomb.pixel_y
+                        distance_squared = dx * dx + dy * dy
+                        if distance_squared < (PLAYER_RADIUS + bomb_radius) * (PLAYER_RADIUS + bomb_radius):
+                            new_player_bomb4 = bomb
+                            break
+                    
+                    if not check_collision(player4.x, new_y4, exclude_bomb=new_player_bomb4):
+                        player4.y = new_y4
+                
+                # Update thrown bomb for player 4
+                if player4.is_throwing and player4.thrown_bomb is not None and not player4.thrown_bomb.is_moving:
+                    player4.thrown_bomb.pixel_x = player4.x
+                    player4.thrown_bomb.pixel_y = player4.y
+                    player4.thrown_bomb.update_grid_pos()
+            
+            # Check if player 4's hitbox has fully left any bombs they were previously on
+            # This allows bombs to be kicked after the player has left them
+            if player4:
+                player4_left = player4.x - PLAYER_RADIUS
+                player4_right = player4.x + PLAYER_RADIUS
+                player4_top = player4.y - PLAYER_RADIUS
+                player4_bottom = player4.y + PLAYER_RADIUS
+                
+                for bomb in bombs:
+                    if bomb.exploded:
+                        continue
+                    # Get bomb boundaries (using pixel position)
+                    bomb_radius = CELL_SIZE // 2
+                    bomb_left = bomb.pixel_x - bomb_radius
+                    bomb_right = bomb.pixel_x + bomb_radius
+                    bomb_top = bomb.pixel_y - bomb_radius
+                    bomb_bottom = bomb.pixel_y + bomb_radius
+                    
+                    # Check if player's hitbox is completely outside the bomb's hitbox
+                    player4_fully_outside = (
+                        player4_right < bomb_left or  # Player is to the left of bomb
+                        player4_left > bomb_right or  # Player is to the right of bomb
+                        player4_bottom < bomb_top or  # Player is above bomb
+                        player4_top > bomb_bottom     # Player is below bomb
+                    )
+                    
+                    if player4_fully_outside:
+                        # Mark when player left the bomb (for delay before kicking)
+                        if bomb.left_time is None:
+                            bomb.left_time = current_time
+                        # Only allow kicking after delay has passed AND cooldown is over
+                        if current_time - bomb.left_time >= BOMB_KICK_DELAY and bomb.step_off_cooldown == 0:
+                            bomb.can_be_kicked = True
+                    else:
+                        # Player is back on the bomb, reset the leave time
+                        bomb.left_time = None
+                        bomb.can_be_kicked = False
+                        # Reset cooldown if player gets back on bomb
+                        bomb.step_off_cooldown = 0
+            
+            # Check for bomb kicking for player 4 - when player moves into contact with a bomb, kick it away
+            # If player has kick ability and is moving, check if they're touching a bomb
+            if player4.can_kick and player4.moving:
+                # Check the target position the player is moving to
+                target_grid_x4 = int(new_x4 // CELL_SIZE)
+                target_grid_y4 = int(new_y4 // CELL_SIZE)
+                current_grid_x4 = int(player4.x // CELL_SIZE)
+                current_grid_y4 = int(player4.y // CELL_SIZE)
+                
+                # Don't kick if player is moving away from a bomb (stepping off)
+                # Check if we're moving AWAY from the bomb we're currently on
+                is_stepping_off_bomb4 = False
+                bomb_being_stepped_off4 = None
+                if player_bomb4 is not None:
+                    # Check if we're moving away from the bomb using pixel positions
+                    # Calculate distance from bomb before and after movement
+                    dx_before4 = player4.x - player_bomb4.pixel_x
+                    dy_before4 = player4.y - player_bomb4.pixel_y
+                    distance_before4 = math.sqrt(dx_before4 * dx_before4 + dy_before4 * dy_before4)
+                    
+                    dx_after4 = new_x4 - player_bomb4.pixel_x
+                    dy_after4 = new_y4 - player_bomb4.pixel_y
+                    distance_after4 = math.sqrt(dx_after4 * dx_after4 + dy_after4 * dy_after4)
+                    
+                    # If distance is increasing significantly, we're moving away from the bomb
+                    # Use a threshold to avoid false positives from small movements
+                    bomb_radius = CELL_SIZE // 2
+                    distance_threshold = 2.0  # Minimum distance increase to consider stepping off
+                    if distance_after4 > distance_before4 + distance_threshold and distance_before4 < (PLAYER_RADIUS + bomb_radius + 15):
+                        is_stepping_off_bomb4 = True
+                        bomb_being_stepped_off4 = player_bomb4
+                        # Set cooldown immediately when stepping off
+                        player_bomb4.step_off_cooldown = 15  # 15 frames cooldown
+                
+                # Always exclude the bomb we're stepping off from, even if detection failed
+                # Check if target cell has a bomb (that's not the one we're currently on)
+                for bomb in bombs:
+                    if bomb.exploded or bomb.is_moving:
+                        continue
+                    if bomb == player_bomb4:
+                        continue
+                    # Don't kick the bomb we're stepping off from
+                    if bomb == bomb_being_stepped_off4:
+                        continue
+                    # Don't kick if bomb is in step-off cooldown period
+                    if bomb.step_off_cooldown > 0:
+                        continue
+                    
+                    # If we're stepping off ANY bomb, skip ALL kick checks to prevent accidental kicks
+                    if is_stepping_off_bomb4:
+                        continue
+                    
+                    # Also check if this bomb was recently stepped off (extra safety check)
+                    if bomb == player_bomb4 and bomb.step_off_cooldown > 0:
+                        continue
+                    
+                    # Check if bomb is in target cell or adjacent to player
+                    bomb_in_target4 = (bomb.grid_x == target_grid_x4 and bomb.grid_y == target_grid_y4)
+                    bomb_adjacent4 = False
+                    if not bomb_in_target4:
+                        # Check if bomb is adjacent to current position
+                        bomb_dx4 = abs(bomb.grid_x - current_grid_x4)
+                        bomb_dy4 = abs(bomb.grid_y - current_grid_y4)
+                        bomb_adjacent4 = (bomb_dx4 == 1 and bomb_dy4 == 0) or (bomb_dx4 == 0 and bomb_dy4 == 1)
+                    
+                    if bomb_in_target4:
+                        # If bomb is in target cell, player is moving into it - allow kick
+                        # Always allow kicking when moving into a bomb's cell
+                        should_kick4 = True
+                    elif bomb_adjacent4:
+                        # For adjacent bombs, require can_be_kicked flag and check distance
+                        if not bomb.can_be_kicked:
+                            should_kick4 = False
+                        else:
+                            # Check distance from player to bomb (using pixel positions)
+                            # Use the closer of current or target position
+                            dx_current4 = player4.x - bomb.pixel_x
+                            dy_current4 = player4.y - bomb.pixel_y
+                            distance_current4 = math.sqrt(dx_current4 * dx_current4 + dy_current4 * dy_current4)
+                            
+                            dx_target4 = new_x4 - bomb.pixel_x
+                            dy_target4 = new_y4 - bomb.pixel_y
+                            distance_target4 = math.sqrt(dx_target4 * dx_target4 + dy_target4 * dy_target4)
+                            
+                            min_distance4 = min(distance_current4, distance_target4)
+                            # Allow kick if player is within reasonable distance (less than 1.5 cell sizes)
+                            should_kick4 = min_distance4 < CELL_SIZE * 1.5
+                    else:
+                        should_kick4 = False
+                    
+                    if should_kick4:
+                        # Player is moving into this bomb - kick it away
+                        # Determine direction from player to bomb, then kick opposite
+                        dx4 = bomb.grid_x - current_grid_x4
+                        dy4 = bomb.grid_y - current_grid_y4
+                        
+                        # Determine kick velocity
+                        kick_vel_x4 = 0.0
+                        kick_vel_y4 = 0.0
+                        if dx4 > 0:  # Bomb is to the right of player, kick right
+                            kick_vel_x4 = BOMB_KICK_SPEED
+                            kick_vel_y4 = 0.0
+                        elif dx4 < 0:  # Bomb is to the left of player, kick left
+                            kick_vel_x4 = -BOMB_KICK_SPEED
+                            kick_vel_y4 = 0.0
+                        elif dy4 > 0:  # Bomb is below player, kick down
+                            kick_vel_x4 = 0.0
+                            kick_vel_y4 = BOMB_KICK_SPEED
+                        elif dy4 < 0:  # Bomb is above player, kick up
+                            kick_vel_x4 = 0.0
+                            kick_vel_y4 = -BOMB_KICK_SPEED
+                        
+                        # Check if bomb can actually move before setting flag
+                        can_move4 = check_bomb_can_move(bomb, kick_vel_x4, kick_vel_y4)
+                        
+                        bomb.velocity_x = kick_vel_x4
+                        bomb.velocity_y = kick_vel_y4
+                        bomb.is_moving = True
+                        bomb.just_started_moving = can_move4  # Only set flag if bomb can actually move
+                        break
+                    
+                    # Also check adjacent cells for bombs when player is moving
+                    # But only if player is NOT currently standing on a bomb (to avoid kicking when stepping off)
+                    if player_bomb4 is None and not is_stepping_off_bomb4:
+                        adjacent_positions4 = [
+                            (current_grid_x4, current_grid_y4 - 1),  # Up
+                            (current_grid_x4, current_grid_y4 + 1),  # Down
+                            (current_grid_x4 - 1, current_grid_y4),  # Left
+                            (current_grid_x4 + 1, current_grid_y4),  # Right
+                        ]
+                        
+                        for adj_x4, adj_y4 in adjacent_positions4:
+                            for bomb in bombs:
+                                if bomb.exploded or bomb.is_moving:
+                                    continue
+                                # Check if bomb is at this adjacent position
+                                if bomb.grid_x != adj_x4 or bomb.grid_y != adj_y4:
+                                    continue
+                                # Don't kick the bomb we're stepping off from
+                                if bomb == bomb_being_stepped_off4:
+                                    continue
+                                # Only allow kicking if player has left this bomb's cell at least once and delay has passed
+                                if not bomb.can_be_kicked:
+                                    continue
+                                
+                                # Check distance from player to bomb (using pixel positions)
+                                # Use the closer of current or target position
+                                dx_current4 = player4.x - bomb.pixel_x
+                                dy_current4 = player4.y - bomb.pixel_y
+                                distance_current4 = math.sqrt(dx_current4 * dx_current4 + dy_current4 * dy_current4)
+                                
+                                dx_target4 = new_x4 - bomb.pixel_x
+                                dy_target4 = new_y4 - bomb.pixel_y
+                                distance_target4 = math.sqrt(dx_target4 * dx_target4 + dy_target4 * dy_target4)
+                                
+                                min_distance4 = min(distance_current4, distance_target4)
+                                # Allow kick if player is within reasonable distance (less than 1.5 cell sizes)
+                                if min_distance4 < CELL_SIZE * 1.5:
+                                    # Determine direction from player to bomb, then kick opposite
+                                    dx4 = bomb.grid_x - current_grid_x4
+                                    dy4 = bomb.grid_y - current_grid_y4
+                                    
+                                    # Determine kick velocity
+                                    kick_vel_x4 = 0.0
+                                    kick_vel_y4 = 0.0
+                                    if dx4 > 0:  # Bomb is to the right of player, kick right
+                                        kick_vel_x4 = BOMB_KICK_SPEED
+                                        kick_vel_y4 = 0.0
+                                    elif dx4 < 0:  # Bomb is to the left of player, kick left
+                                        kick_vel_x4 = -BOMB_KICK_SPEED
+                                        kick_vel_y4 = 0.0
+                                    elif dy4 > 0:  # Bomb is below player, kick down
+                                        kick_vel_x4 = 0.0
+                                        kick_vel_y4 = BOMB_KICK_SPEED
+                                    elif dy4 < 0:  # Bomb is above player, kick up
+                                        kick_vel_x4 = 0.0
+                                        kick_vel_y4 = -BOMB_KICK_SPEED
+                                    
+                                    # Check if bomb can actually move before setting flag
+                                    can_move4 = check_bomb_can_move(bomb, kick_vel_x4, kick_vel_y4)
+                                    
+                                    bomb.velocity_x = kick_vel_x4
+                                    bomb.velocity_y = kick_vel_y4
+                                    bomb.is_moving = True
+                                    bomb.just_started_moving = can_move4  # Only set flag if bomb can actually move
+                                    break
             
             for bomb in bombs:
                 if bomb.is_moving and not bomb.exploded:
@@ -5631,12 +7456,30 @@ def main():
         draw_item_explosions(current_time)
         
         # Draw the players - sort by Y position so higher Y (closer to bottom) is drawn on top
+        # Only draw players who are alive or still animating their death
         active_players = []
+        DEATH_ANIMATION_DURATION = 4600
         if player1:
-            active_players.append(player1)
+            if not player1.game_over:
+                active_players.append(player1)
+            elif player1.death_time is not None and (current_time - player1.death_time) < DEATH_ANIMATION_DURATION:
+                active_players.append(player1)
         if player2:
-            active_players.append(player2)
-        
+            if not player2.game_over:
+                active_players.append(player2)
+            elif player2.death_time is not None and (current_time - player2.death_time) < DEATH_ANIMATION_DURATION:
+                active_players.append(player2)
+        if player3:
+            if not player3.game_over:
+                active_players.append(player3)
+            elif player3.death_time is not None and (current_time - player3.death_time) < DEATH_ANIMATION_DURATION:
+                active_players.append(player3)
+        if player4:
+            if not player4.game_over:
+                active_players.append(player4)
+            elif player4.death_time is not None and (current_time - player4.death_time) < DEATH_ANIMATION_DURATION:
+                active_players.append(player4)
+
         # Sort by Y position (lower Y first, higher Y last) so higher Y appears on top
         active_players.sort(key=lambda p: p.y)
         
