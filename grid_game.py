@@ -130,6 +130,12 @@ except Exception as e:
     hurry_up_2_sound = None
     print(f"Warning: Could not load hurry up 2 sound: {e}")
 
+try:
+    skull_sound = pygame.mixer.Sound(resource_path("skull.wav"))
+except Exception as e:
+    skull_sound = None
+    print(f"Warning: Could not load skull sound: {e}")
+
 # Constants
 GRID_WIDTH = 15
 GRID_HEIGHT = 13
@@ -410,6 +416,8 @@ class Player:
         self.max_bombs = 1
         self.can_kick = False
         self.has_glove = False
+        self.has_skull = False
+        self.skull_effect = None  # None, 'fast', 'slow', 'diarrhea', 'low_power', 'constipation'
         self.thrown_bomb = None
         self.is_throwing = False
         self.glove_pickup_animation_start_time = None
@@ -1245,6 +1253,187 @@ if 'glove_pickup_sprites' not in globals():
     glove_pickup_sprites = {}
     glove_pickup_sprites_loaded = False
 
+# Load skull sprites for all players
+skull_sprites = {}  # Dictionary for player 1 skull sprites
+skull_sprites2 = {}  # Dictionary for player 2 skull sprites
+skull_sprites3 = {}  # Dictionary for player 3 skull sprites
+skull_sprites4 = {}  # Dictionary for player 4 skull sprites
+skull_sprite_loaded = False
+skull_sprite2_loaded = False
+skull_sprite3_loaded = False
+skull_sprite4_loaded = False
+
+try:
+    # Suppress libpng warnings about incorrect sRGB profile
+    old_stderr = sys.stderr
+    sys.stderr = open(os.devnull, 'w')
+    try:
+        skull_sprite_sheet = pygame.image.load(resource_path("player skull.png"))
+    finally:
+        sys.stderr.close()
+        sys.stderr = old_stderr
+    skull_sprite_sheet = skull_sprite_sheet.convert()
+    
+    # Load skull sprites using same structure as normal player sprites
+    # Rows: 1st row (y=0) = up, 2nd row (y=32) = right, 3rd row (y=64) = down, 4th row (y=96) = left
+    # Columns: 1st column (x=0) = idle, 2nd column (x=16) = walk frame 1, 3rd column (x=32) = walk frame 2
+    directions = {
+        'up': 0,      # Row 1: y = 0
+        'right': 32,  # Row 2: y = 32
+        'down': 64,   # Row 3: y = 64
+        'left': 96    # Row 4: y = 96
+    }
+    
+    columns = {
+        'idle': 0,    # Column 1: x = 0
+        'walk1': 16,  # Column 2: x = 16
+        'walk2': 32   # Column 3: x = 32
+    }
+    
+    # Load skull sprites for all players (using same sprite sheet for all)
+    for player_num in [1, 2, 3, 4]:
+        player_skull_sprites = {}
+        for direction, y_offset in directions.items():
+            direction_sprites = []
+            for frame_name, x_offset in columns.items():
+                sprite = pygame.Surface((PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+                sprite.blit(skull_sprite_sheet, (0, 0), (x_offset, y_offset, PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+                
+                # Remove chroma key green background using the helper function
+                sprite = remove_chroma_key(sprite)
+                # Scale player sprite to be 2.5x bigger (maintain 1:2 aspect ratio)
+                # 16x32 becomes 40x80
+                new_width = int(PLAYER_SPRITE_WIDTH * 2.5)
+                new_height = int(PLAYER_SPRITE_HEIGHT * 2.5)
+                sprite = pygame.transform.scale(sprite, (new_width, new_height))
+                direction_sprites.append(sprite)
+            
+            player_skull_sprites[direction] = direction_sprites  # [idle, walk1, walk2]
+        
+        # Assign to appropriate player
+        if player_num == 1:
+            skull_sprites = player_skull_sprites
+            skull_sprite_loaded = True
+        elif player_num == 2:
+            skull_sprites2 = player_skull_sprites
+            skull_sprite2_loaded = True
+        elif player_num == 3:
+            skull_sprites3 = player_skull_sprites
+            skull_sprite3_loaded = True
+        elif player_num == 4:
+            skull_sprites4 = player_skull_sprites
+            skull_sprite4_loaded = True
+    
+    # Load skull death sprites (using same positions as normal death sprites)
+    skull_death_sprites = []
+    skull_death_sprites2 = []
+    skull_death_sprites3 = []
+    skull_death_sprites4 = []
+    
+    DEATH_ROW_11_Y = 10 * 32
+    DEATH_ROW_12_Y = 11 * 32
+    DEATH_ROW_5_Y = 4 * 32
+    
+    # Load death sprites for all players
+    for player_num in [1, 2, 3, 4]:
+        player_skull_death_sprites = []
+        
+        # Front sprite (row 11, sprite 1)
+        front_sprite = pygame.Surface((PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+        front_sprite.blit(skull_sprite_sheet, (0, 0), (0, DEATH_ROW_11_Y, PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+        front_sprite = remove_chroma_key(front_sprite)
+        front_sprite = pygame.transform.scale(front_sprite, (int(PLAYER_SPRITE_WIDTH * 2.5), int(PLAYER_SPRITE_HEIGHT * 2.5)))
+        player_skull_death_sprites.append(front_sprite)
+        
+        # Right sprite (row 11, sprite 2)
+        right_sprite = pygame.Surface((PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+        right_sprite.blit(skull_sprite_sheet, (0, 0), (16, DEATH_ROW_11_Y, PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+        right_sprite = remove_chroma_key(right_sprite)
+        right_sprite = pygame.transform.scale(right_sprite, (int(PLAYER_SPRITE_WIDTH * 2.5), int(PLAYER_SPRITE_HEIGHT * 2.5)))
+        player_skull_death_sprites.append(right_sprite)
+        
+        # Back sprite (row 5, sprite 1)
+        back_sprite = pygame.Surface((PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+        back_sprite.blit(skull_sprite_sheet, (0, 0), (0, DEATH_ROW_5_Y, PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+        back_sprite = remove_chroma_key(back_sprite)
+        back_sprite = pygame.transform.scale(back_sprite, (int(PLAYER_SPRITE_WIDTH * 2.5), int(PLAYER_SPRITE_HEIGHT * 2.5)))
+        player_skull_death_sprites.append(back_sprite)
+        
+        # Left sprite (row 11, sprite 3)
+        left_sprite = pygame.Surface((PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+        left_sprite.blit(skull_sprite_sheet, (0, 0), (32, DEATH_ROW_11_Y, PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+        left_sprite = remove_chroma_key(left_sprite)
+        left_sprite = pygame.transform.scale(left_sprite, (int(PLAYER_SPRITE_WIDTH * 2.5), int(PLAYER_SPRITE_HEIGHT * 2.5)))
+        player_skull_death_sprites.append(left_sprite)
+        
+        # Row 11, sprite 4
+        row11_sprite4 = pygame.Surface((PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+        row11_sprite4.blit(skull_sprite_sheet, (0, 0), (48, DEATH_ROW_11_Y, PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+        row11_sprite4 = remove_chroma_key(row11_sprite4)
+        row11_sprite4 = pygame.transform.scale(row11_sprite4, (int(PLAYER_SPRITE_WIDTH * 2.5), int(PLAYER_SPRITE_HEIGHT * 2.5)))
+        player_skull_death_sprites.append(row11_sprite4)
+        
+        # Row 12 sprites
+        for x_offset in [0, 16, 32, 48, 64]:
+            row12_sprite = pygame.Surface((PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+            row12_sprite.blit(skull_sprite_sheet, (0, 0), (x_offset, DEATH_ROW_12_Y, PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+            row12_sprite = remove_chroma_key(row12_sprite)
+            row12_sprite = pygame.transform.scale(row12_sprite, (int(PLAYER_SPRITE_WIDTH * 2.5), int(PLAYER_SPRITE_HEIGHT * 2.5)))
+            player_skull_death_sprites.append(row12_sprite)
+        
+        # Assign to appropriate player
+        if player_num == 1:
+            skull_death_sprites = player_skull_death_sprites
+        elif player_num == 2:
+            skull_death_sprites2 = player_skull_death_sprites
+        elif player_num == 3:
+            skull_death_sprites3 = player_skull_death_sprites
+        elif player_num == 4:
+            skull_death_sprites4 = player_skull_death_sprites
+    
+    # Load skull glove pickup sprites (using same positions as normal glove pickup sprites)
+    skull_glove_pickup_sprites = {}
+    skull_glove_pickup_sprites2 = {}
+    skull_glove_pickup_sprites3 = {}
+    skull_glove_pickup_sprites4 = {}
+    
+    # Glove pickup animation rows: 5, 6, 7, 8 (for up, right, down, left)
+    glove_rows = {
+        'up': 4 * 32,      # Row 5: y = 128
+        'right': 5 * 32,   # Row 6: y = 160
+        'down': 6 * 32,    # Row 7: y = 192
+        'left': 7 * 32     # Row 8: y = 224
+    }
+    
+    for player_num in [1, 2, 3, 4]:
+        player_skull_glove_sprites = {}
+        for direction, row_y in glove_rows.items():
+            direction_sprites = []
+            for x_offset in [0, 16, 32, 48]:  # 4 sprites per direction
+                sprite = pygame.Surface((PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+                sprite.blit(skull_sprite_sheet, (0, 0), (x_offset, row_y, PLAYER_SPRITE_WIDTH, PLAYER_SPRITE_HEIGHT))
+                sprite = remove_chroma_key(sprite)
+                sprite = pygame.transform.scale(sprite, (int(PLAYER_SPRITE_WIDTH * 2.5), int(PLAYER_SPRITE_HEIGHT * 2.5)))
+                direction_sprites.append(sprite)
+            player_skull_glove_sprites[direction] = direction_sprites
+        
+        # Assign to appropriate player
+        if player_num == 1:
+            skull_glove_pickup_sprites = player_skull_glove_sprites
+        elif player_num == 2:
+            skull_glove_pickup_sprites2 = player_skull_glove_sprites
+        elif player_num == 3:
+            skull_glove_pickup_sprites3 = player_skull_glove_sprites
+        elif player_num == 4:
+            skull_glove_pickup_sprites4 = player_skull_glove_sprites
+            
+except Exception as e:
+    skull_sprite_loaded = False
+    skull_sprite2_loaded = False
+    skull_sprite3_loaded = False
+    skull_sprite4_loaded = False
+    print(f"Warning: Could not load skull sprites: {e}")
+
 # Create player instances after sprite loading
 # Player 1 spawns at top-left (1, 1)
 player1 = Player(1 * CELL_SIZE + CELL_SIZE // 2, 1 * CELL_SIZE + CELL_SIZE // 2, 1, player_sprites if player_sprite_loaded else {})
@@ -1629,11 +1818,13 @@ speed_powerup_sprites = []  # List of speed powerup animation frames [blue, red]
 fire_powerup_sprites = []  # List of fire powerup animation frames [blue, red]
 kick_powerup_sprites = []  # List of kick powerup animation frames [blue, red]
 glove_powerup_sprites = []  # List of glove powerup animation frames [blue, red]
+skull_powerup_sprites = []  # List of skull powerup animation frames [blue, red]
 powerup_sprite_loaded = False
 speed_powerup_sprite_loaded = False
 fire_powerup_sprite_loaded = False
 kick_powerup_sprite_loaded = False
 glove_powerup_sprite_loaded = False
+skull_powerup_sprite_loaded = False
 POWERUP_ANIMATION_SPEED = 100  # milliseconds per frame (switches every 100ms for very fast flashing)
 try:
     # Suppress libpng warnings about incorrect sRGB profile
@@ -1756,12 +1947,27 @@ try:
         glove_powerup_sprites.append(glove_sprite)
     
     glove_powerup_sprite_loaded = True
+    
+    # Load skull powerup sprites:
+    # Red sprite on 4th row (y=48), 6th column (x=80)
+    # Blue sprite on 1st row (y=0), 6th column (x=80)
+    # Loading blue first then red to match animation order (blue at index 0, red at index 1)
+    skull_powerup_positions = [(80, 0), (80, 48)]  # [blue (row 1), red (row 4)]
+    
+    for x_pos, y_pos in skull_powerup_positions:
+        skull_sprite = pygame.Surface((POWERUP_SPRITE_SIZE, POWERUP_SPRITE_SIZE), pygame.SRCALPHA)
+        skull_sprite.blit(items_sheet, (0, 0), (x_pos, y_pos, POWERUP_SPRITE_SIZE, POWERUP_SPRITE_SIZE))
+        skull_sprite = process_powerup_sprite(skull_sprite)
+        skull_powerup_sprites.append(skull_sprite)
+    
+    skull_powerup_sprite_loaded = True
 except Exception as e:
     powerup_sprite_loaded = False
     speed_powerup_sprite_loaded = False
     fire_powerup_sprite_loaded = False
     kick_powerup_sprite_loaded = False
     glove_powerup_sprite_loaded = False
+    skull_powerup_sprite_loaded = False
     print(f"Warning: Could not load powerup sprites: {e}. Using default circle.")
 
 # Clock for controlling frame rate
@@ -2838,6 +3044,72 @@ def check_player_in_explosion(player_x, player_y, explosion_cells):
     # Check if player's grid cell is in explosion cells
     return (player_grid_x, player_grid_y) in explosion_cells
 
+def remove_skull_effect(player):
+    """Remove skull effect from player and restore stats"""
+    if not player.has_skull:
+        return False
+    
+    # Restore stats based on effect
+    if player.skull_effect == 'fast':
+        player.move_speed /= 3.0
+    elif player.skull_effect == 'slow':
+        player.move_speed /= 0.3
+    elif player.skull_effect == 'low_power':
+        player.explosion_range = 2  # Reset to default
+    
+    # Clear skull effect
+    player.has_skull = False
+    player.skull_effect = None
+    
+    return True
+
+def respawn_skull():
+    """Respawn skull on a random unoccupied tile"""
+    global powerups
+    
+    # Find all valid tiles (not walls, destructible walls, bombs, or existing powerups)
+    valid_tiles = []
+    for x in range(GRID_WIDTH):
+        for y in range(GRID_HEIGHT):
+            # Skip walls
+            if (x, y) in walls:
+                continue
+            # Skip destructible walls
+            if (x, y) in destructible_walls:
+                continue
+            # Skip breaking blocks
+            if (x, y) in breaking_blocks:
+                continue
+            # Skip existing powerups
+            if (x, y) in powerups:
+                continue
+            # Skip tiles with bombs
+            has_bomb = False
+            for bomb in bombs:
+                if bomb.grid_x == x and bomb.grid_y == y and not bomb.exploded:
+                    has_bomb = True
+                    break
+            if has_bomb:
+                continue
+            # Skip player spawn positions
+            player_spawns = [
+                (1, 1),  # Top-left (P1)
+                (GRID_WIDTH - 2, GRID_HEIGHT - 2),  # Bottom-right (P2)
+                (GRID_WIDTH - 2, 1),  # Top-right (P3)
+                (1, GRID_HEIGHT - 2)  # Bottom-left (P4)
+            ]
+            if (x, y) in player_spawns:
+                continue
+            
+            valid_tiles.append((x, y))
+    
+    # Spawn skull on random valid tile
+    if valid_tiles:
+        spawn_tile = random.choice(valid_tiles)
+        powerups[spawn_tile] = 'skull'
+        return True
+    return False
+
 def reset_game():
     """Reset the game state"""
     global bombs, destructible_walls, breaking_blocks, powerups, item_explosions, MOVE_SPEED, BOMB_EXPLOSION_RANGE
@@ -2851,6 +3123,8 @@ def reset_game():
         player1.max_bombs = 1
         player1.can_kick = False
         player1.has_glove = False
+        player1.has_skull = False
+        player1.skull_effect = None
         player1.thrown_bomb = None
         player1.is_throwing = False
         player1.glove_pickup_animation_start_time = None
@@ -2870,6 +3144,8 @@ def reset_game():
         player2.max_bombs = 1
         player2.can_kick = False
         player2.has_glove = False
+        player2.has_skull = False
+        player2.skull_effect = None
         player2.thrown_bomb = None
         player2.is_throwing = False
         player2.glove_pickup_animation_start_time = None
@@ -2889,6 +3165,8 @@ def reset_game():
         player3.max_bombs = 1
         player3.can_kick = False
         player3.has_glove = False
+        player3.has_skull = False
+        player3.skull_effect = None
         player3.thrown_bomb = None
         player3.is_throwing = False
         player3.glove_pickup_animation_start_time = None
@@ -2908,6 +3186,8 @@ def reset_game():
         player4.max_bombs = 1
         player4.can_kick = False
         player4.has_glove = False
+        player4.has_skull = False
+        player4.skull_effect = None
         player4.thrown_bomb = None
         player4.is_throwing = False
         player4.glove_pickup_animation_start_time = None
@@ -2947,6 +3227,12 @@ def reset_game():
     sudden_death_spawn_times.clear()
     sudden_death_active = False
     sudden_death_path = []
+    
+    # Spawn skull powerdown at tile to the right of player 1's spawn (2, 1)
+    # Make sure the location is clear (not a destructible wall)
+    if (2, 1) in destructible_walls:
+        destructible_walls.remove((2, 1))
+    powerups[(2, 1)] = 'skull'
     sudden_death_index = 0
     sudden_death_hurry_start_time = None
     sudden_death_hurry_animation_end_time = None
@@ -2979,21 +3265,33 @@ def explode_bomb(bomb, current_time, check_player_death=True):
             if player1 and not player1.game_over:
                 if check_player_in_explosion(player1.x, player1.y, bomb.explosion_cells):
                     if not player1.invincible:
+                        # Remove skull effect if player has it
+                        if remove_skull_effect(player1):
+                            respawn_skull()
                         player1.game_over = True
                         player1.death_time = current_time
             if player2 and not player2.game_over:
                 if check_player_in_explosion(player2.x, player2.y, bomb.explosion_cells):
                     if not player2.invincible:
+                        # Remove skull effect if player has it
+                        if remove_skull_effect(player2):
+                            respawn_skull()
                         player2.game_over = True
                         player2.death_time = current_time
             if player3 and not player3.game_over:
                 if check_player_in_explosion(player3.x, player3.y, bomb.explosion_cells):
                     if not player3.invincible:
+                        # Remove skull effect if player has it
+                        if remove_skull_effect(player3):
+                            respawn_skull()
                         player3.game_over = True
                         player3.death_time = current_time
             if player4 and not player4.game_over:
                 if check_player_in_explosion(player4.x, player4.y, bomb.explosion_cells):
                     if not player4.invincible:
+                        # Remove skull effect if player has it
+                        if remove_skull_effect(player4):
+                            respawn_skull()
                         player4.game_over = True
                         player4.death_time = current_time
         
@@ -3057,6 +3355,9 @@ def draw_powerups(current_time=None):
         elif powerup_type == 'glove' and glove_powerup_sprite_loaded and len(glove_powerup_sprites) >= 2:
             powerup_sprite = glove_powerup_sprites[frame_index]
             window.blit(powerup_sprite, (x, y))
+        elif powerup_type == 'skull' and skull_powerup_sprite_loaded and len(skull_powerup_sprites) >= 2:
+            powerup_sprite = skull_powerup_sprites[frame_index]
+            window.blit(powerup_sprite, (x, y))
         else:
             # Fallback to colored circle if sprite didn't load
             x_center = grid_x * CELL_SIZE + CELL_SIZE // 2
@@ -3072,6 +3373,8 @@ def draw_powerups(current_time=None):
                 color = ORANGE
             elif powerup_type == 'glove':
                 color = PURPLE  # Use purple as fallback color for glove
+            elif powerup_type == 'skull':
+                color = (128, 128, 128)  # Gray as fallback color for skull
             else:
                 color = YELLOW
             pygame.draw.circle(window, color, (x_center, y_center), CELL_SIZE // 3)
@@ -3151,16 +3454,43 @@ def draw_hitboxes():
 def draw_player(player, current_time=None):
     """Draw the player at their current position with walking animation or death animation"""
     
+    # Helper function to determine if we should use skull sprite (flashing effect)
+    def should_use_skull():
+        if not player.has_skull or current_time is None:
+            return False
+        # Flash every 150ms (alternate between normal and skull)
+        SKULL_FLASH_SPEED = 150
+        return (current_time // SKULL_FLASH_SPEED) % 2 == 1
+    
     # Check if we should show death animation
     # Choose appropriate death sprites based on player number
-    if player.player_num == 2 and death_sprites2_loaded:
-        player_death_sprites = death_sprites2
-    elif player.player_num == 3 and death_sprites3_loaded:
-        player_death_sprites = death_sprites3
-    elif player.player_num == 4 and death_sprites4_loaded:
-        player_death_sprites = death_sprites4
+    use_skull_death = should_use_skull()
+    if player.player_num == 2:
+        if use_skull_death and skull_sprite2_loaded:
+            player_death_sprites = skull_death_sprites2
+        elif death_sprites2_loaded:
+            player_death_sprites = death_sprites2
+        else:
+            player_death_sprites = []
+    elif player.player_num == 3:
+        if use_skull_death and skull_sprite3_loaded:
+            player_death_sprites = skull_death_sprites3
+        elif death_sprites3_loaded:
+            player_death_sprites = death_sprites3
+        else:
+            player_death_sprites = []
+    elif player.player_num == 4:
+        if use_skull_death and skull_sprite4_loaded:
+            player_death_sprites = skull_death_sprites4
+        elif death_sprites4_loaded:
+            player_death_sprites = death_sprites4
+        else:
+            player_death_sprites = []
     else:
-        player_death_sprites = death_sprites if death_sprites else []
+        if use_skull_death and skull_sprite_loaded:
+            player_death_sprites = skull_death_sprites if skull_death_sprites else []
+        else:
+            player_death_sprites = death_sprites if death_sprites else []
     if player.game_over and player.death_time is not None and current_time is not None and player_death_sprites:
         # Death animation: 5 spins, getting slower
         # Each spin has 4 frames: front, right, back, left (20 frames total)
@@ -3299,18 +3629,44 @@ def draw_player(player, current_time=None):
     # Check if we should show glove pickup animation
     # Animation plays when: player has glove, is standing on bomb
     # Choose appropriate glove pickup sprites based on player number
-    if player.player_num == 2 and glove_pickup_sprites2_loaded:
-        player_glove_sprites = glove_pickup_sprites2
-        player_glove_sprites_loaded = True
-    elif player.player_num == 3 and glove_pickup_sprites3_loaded:
-        player_glove_sprites = glove_pickup_sprites3
-        player_glove_sprites_loaded = True
-    elif player.player_num == 4 and glove_pickup_sprites4_loaded:
-        player_glove_sprites = glove_pickup_sprites4
-        player_glove_sprites_loaded = True
+    use_skull_glove = should_use_skull()
+    if player.player_num == 2:
+        if use_skull_glove and skull_sprite2_loaded:
+            player_glove_sprites = skull_glove_pickup_sprites2 if skull_glove_pickup_sprites2 else {}
+            player_glove_sprites_loaded = bool(skull_glove_pickup_sprites2)
+        elif glove_pickup_sprites2_loaded:
+            player_glove_sprites = glove_pickup_sprites2
+            player_glove_sprites_loaded = True
+        else:
+            player_glove_sprites = {}
+            player_glove_sprites_loaded = False
+    elif player.player_num == 3:
+        if use_skull_glove and skull_sprite3_loaded:
+            player_glove_sprites = skull_glove_pickup_sprites3 if skull_glove_pickup_sprites3 else {}
+            player_glove_sprites_loaded = bool(skull_glove_pickup_sprites3)
+        elif glove_pickup_sprites3_loaded:
+            player_glove_sprites = glove_pickup_sprites3
+            player_glove_sprites_loaded = True
+        else:
+            player_glove_sprites = {}
+            player_glove_sprites_loaded = False
+    elif player.player_num == 4:
+        if use_skull_glove and skull_sprite4_loaded:
+            player_glove_sprites = skull_glove_pickup_sprites4 if skull_glove_pickup_sprites4 else {}
+            player_glove_sprites_loaded = bool(skull_glove_pickup_sprites4)
+        elif glove_pickup_sprites4_loaded:
+            player_glove_sprites = glove_pickup_sprites4
+            player_glove_sprites_loaded = True
+        else:
+            player_glove_sprites = {}
+            player_glove_sprites_loaded = False
     else:
-        player_glove_sprites = glove_pickup_sprites if glove_pickup_sprites_loaded else {}
-        player_glove_sprites_loaded = (player.player_num == 1 and glove_pickup_sprites_loaded)
+        if use_skull_glove and skull_sprite_loaded:
+            player_glove_sprites = skull_glove_pickup_sprites if skull_glove_pickup_sprites else {}
+            player_glove_sprites_loaded = bool(skull_glove_pickup_sprites)
+        else:
+            player_glove_sprites = glove_pickup_sprites if glove_pickup_sprites_loaded else {}
+            player_glove_sprites_loaded = (player.player_num == 1 and glove_pickup_sprites_loaded)
     
     if (player.glove_pickup_animation_start_time is not None and player.glove_pickup_animation_direction is not None and 
         current_time is not None and player_glove_sprites_loaded and 
@@ -3712,7 +4068,29 @@ def draw_player(player, current_time=None):
             player.glove_pickup_animation_direction = None
     
     # Normal player drawing
-    player_sprites_dict = player.sprites if player.sprites else {}
+    use_skull_normal = should_use_skull()
+    # Choose appropriate sprites based on player number and skull state
+    if player.player_num == 2:
+        if use_skull_normal and skull_sprite2_loaded:
+            player_sprites_dict = skull_sprites2 if skull_sprites2 else {}
+        else:
+            player_sprites_dict = player.sprites if player.sprites else {}
+    elif player.player_num == 3:
+        if use_skull_normal and skull_sprite3_loaded:
+            player_sprites_dict = skull_sprites3 if skull_sprites3 else {}
+        else:
+            player_sprites_dict = player.sprites if player.sprites else {}
+    elif player.player_num == 4:
+        if use_skull_normal and skull_sprite4_loaded:
+            player_sprites_dict = skull_sprites4 if skull_sprites4 else {}
+        else:
+            player_sprites_dict = player.sprites if player.sprites else {}
+    else:
+        if use_skull_normal and skull_sprite_loaded:
+            player_sprites_dict = skull_sprites if skull_sprites else {}
+        else:
+            player_sprites_dict = player.sprites if player.sprites else {}
+    
     if player_sprites_dict:
         # Get the sprites for the current direction (default to 'down' if not found)
         direction_sprites = player_sprites_dict.get(player.direction, player_sprites_dict.get('down'))
@@ -3773,6 +4151,12 @@ def main():
     
     # Load and play background music
     restart_music()
+    
+    # Spawn skull powerdown at tile to the right of player 1's spawn (2, 1)
+    # Make sure the location is clear (not a destructible wall)
+    if (2, 1) in destructible_walls:
+        destructible_walls.remove((2, 1))
+    powerups[(2, 1)] = 'skull'
     
     running = True
     game_over = False
@@ -3981,27 +4365,29 @@ def main():
                                             break
                             
                             if not player1.is_throwing:
-                                # Count only player 1's active bombs
-                                active_bomb_count = 0
-                                for bomb in bombs:
-                                    if not bomb.exploded and bomb.placed_by == 1:
-                                        active_bomb_count += 1
-                                
-                                if active_bomb_count < player1.max_bombs:
-                                    grid_x = int(player1.x // CELL_SIZE)
-                                    grid_y = int(player1.y // CELL_SIZE)
-                                    
-                                    bomb_exists = False
+                                # Check for constipation effect - prevent bomb placement
+                                if player1.skull_effect != 'constipation':
+                                    # Count only player 1's active bombs
+                                    active_bomb_count = 0
                                     for bomb in bombs:
-                                        if bomb.grid_x == grid_x and bomb.grid_y == grid_y and not bomb.exploded:
-                                            bomb_exists = True
-                                            break
+                                        if not bomb.exploded and bomb.placed_by == 1:
+                                            active_bomb_count += 1
                                     
-                                    if not bomb_exists and (grid_x, grid_y) not in walls and (grid_x, grid_y) not in destructible_walls:
-                                        new_bomb = Bomb(grid_x, grid_y, current_time, placed_by=1)
-                                        bombs.append(new_bomb)
-                                        if place_bomb_sound:
-                                            place_bomb_sound.play()
+                                    if active_bomb_count < player1.max_bombs:
+                                        grid_x = int(player1.x // CELL_SIZE)
+                                        grid_y = int(player1.y // CELL_SIZE)
+                                        
+                                        bomb_exists = False
+                                        for bomb in bombs:
+                                            if bomb.grid_x == grid_x and bomb.grid_y == grid_y and not bomb.exploded:
+                                                bomb_exists = True
+                                                break
+                                        
+                                        if not bomb_exists and (grid_x, grid_y) not in walls and (grid_x, grid_y) not in destructible_walls:
+                                            new_bomb = Bomb(grid_x, grid_y, current_time, placed_by=1)
+                                            bombs.append(new_bomb)
+                                            if place_bomb_sound:
+                                                place_bomb_sound.play()
                 elif event.key == pygame.K_e:
                     # Player 2 bomb placement (same logic as player 1)
                     if player2 and not player2.game_over:
@@ -4108,26 +4494,28 @@ def main():
                             
                             if not player2.is_throwing:
                                 # Count only player 2's active bombs
-                                active_bomb_count = 0
-                                for bomb in bombs:
-                                    if not bomb.exploded and bomb.placed_by == 2:
-                                        active_bomb_count += 1
-                                
-                                if active_bomb_count < player2.max_bombs:
-                                    grid_x = int(player2.x // CELL_SIZE)
-                                    grid_y = int(player2.y // CELL_SIZE)
-                                    
-                                    bomb_exists = False
+                                # Check for constipation effect - prevent bomb placement
+                                if player2.skull_effect != 'constipation':
+                                    active_bomb_count = 0
                                     for bomb in bombs:
-                                        if bomb.grid_x == grid_x and bomb.grid_y == grid_y and not bomb.exploded:
-                                            bomb_exists = True
-                                            break
+                                        if not bomb.exploded and bomb.placed_by == 2:
+                                            active_bomb_count += 1
                                     
-                                    if not bomb_exists and (grid_x, grid_y) not in walls and (grid_x, grid_y) not in destructible_walls:
-                                        new_bomb = Bomb(grid_x, grid_y, current_time, placed_by=2)
-                                        bombs.append(new_bomb)
-                                        if place_bomb_sound:
-                                            place_bomb_sound.play()
+                                    if active_bomb_count < player2.max_bombs:
+                                        grid_x = int(player2.x // CELL_SIZE)
+                                        grid_y = int(player2.y // CELL_SIZE)
+                                        
+                                        bomb_exists = False
+                                        for bomb in bombs:
+                                            if bomb.grid_x == grid_x and bomb.grid_y == grid_y and not bomb.exploded:
+                                                bomb_exists = True
+                                                break
+                                        
+                                        if not bomb_exists and (grid_x, grid_y) not in walls and (grid_x, grid_y) not in destructible_walls:
+                                            new_bomb = Bomb(grid_x, grid_y, current_time, placed_by=2)
+                                            bombs.append(new_bomb)
+                                            if place_bomb_sound:
+                                                place_bomb_sound.play()
                 elif event.key == pygame.K_o:
                     # Player 3 bomb placement (same logic as player 1 and 2)
                     if player3 and not player3.game_over:
@@ -4234,26 +4622,28 @@ def main():
                             
                             if not player3.is_throwing:
                                 # Count only player 3's active bombs
-                                active_bomb_count = 0
-                                for bomb in bombs:
-                                    if not bomb.exploded and bomb.placed_by == 3:
-                                        active_bomb_count += 1
-                                
-                                if active_bomb_count < player3.max_bombs:
-                                    grid_x = int(player3.x // CELL_SIZE)
-                                    grid_y = int(player3.y // CELL_SIZE)
-                                    
-                                    bomb_exists = False
+                                # Check for constipation effect - prevent bomb placement
+                                if player3.skull_effect != 'constipation':
+                                    active_bomb_count = 0
                                     for bomb in bombs:
-                                        if bomb.grid_x == grid_x and bomb.grid_y == grid_y and not bomb.exploded:
-                                            bomb_exists = True
-                                            break
+                                        if not bomb.exploded and bomb.placed_by == 3:
+                                            active_bomb_count += 1
                                     
-                                    if not bomb_exists and (grid_x, grid_y) not in walls and (grid_x, grid_y) not in destructible_walls:
-                                        new_bomb = Bomb(grid_x, grid_y, current_time, placed_by=3)
-                                        bombs.append(new_bomb)
-                                        if place_bomb_sound:
-                                            place_bomb_sound.play()
+                                    if active_bomb_count < player3.max_bombs:
+                                        grid_x = int(player3.x // CELL_SIZE)
+                                        grid_y = int(player3.y // CELL_SIZE)
+                                        
+                                        bomb_exists = False
+                                        for bomb in bombs:
+                                            if bomb.grid_x == grid_x and bomb.grid_y == grid_y and not bomb.exploded:
+                                                bomb_exists = True
+                                                break
+                                        
+                                        if not bomb_exists and (grid_x, grid_y) not in walls and (grid_x, grid_y) not in destructible_walls:
+                                            new_bomb = Bomb(grid_x, grid_y, current_time, placed_by=3)
+                                            bombs.append(new_bomb)
+                                            if place_bomb_sound:
+                                                place_bomb_sound.play()
                 elif event.key == pygame.K_KP9:
                     # Player 4 bomb placement (same logic as other players)
                     if player4 and not player4.game_over:
@@ -4360,26 +4750,99 @@ def main():
                             
                             if not player4.is_throwing:
                                 # Count only player 4's active bombs
-                                active_bomb_count = 0
-                                for bomb in bombs:
-                                    if not bomb.exploded and bomb.placed_by == 4:
-                                        active_bomb_count += 1
-                                
-                                if active_bomb_count < player4.max_bombs:
-                                    grid_x = int(player4.x // CELL_SIZE)
-                                    grid_y = int(player4.y // CELL_SIZE)
-                                    
-                                    bomb_exists = False
+                                # Check for constipation effect - prevent bomb placement
+                                if player4.skull_effect != 'constipation':
+                                    active_bomb_count = 0
                                     for bomb in bombs:
-                                        if bomb.grid_x == grid_x and bomb.grid_y == grid_y and not bomb.exploded:
-                                            bomb_exists = True
-                                            break
+                                        if not bomb.exploded and bomb.placed_by == 4:
+                                            active_bomb_count += 1
                                     
-                                    if not bomb_exists and (grid_x, grid_y) not in walls and (grid_x, grid_y) not in destructible_walls:
-                                        new_bomb = Bomb(grid_x, grid_y, current_time, placed_by=4)
-                                        bombs.append(new_bomb)
-                                        if place_bomb_sound:
-                                            place_bomb_sound.play()
+                                    if active_bomb_count < player4.max_bombs:
+                                        grid_x = int(player4.x // CELL_SIZE)
+                                        grid_y = int(player4.y // CELL_SIZE)
+                                        
+                                        bomb_exists = False
+                                        for bomb in bombs:
+                                            if bomb.grid_x == grid_x and bomb.grid_y == grid_y and not bomb.exploded:
+                                                bomb_exists = True
+                                                break
+                                        
+                                        if not bomb_exists and (grid_x, grid_y) not in walls and (grid_x, grid_y) not in destructible_walls:
+                                            new_bomb = Bomb(grid_x, grid_y, current_time, placed_by=4)
+                                            bombs.append(new_bomb)
+                                            if place_bomb_sound:
+                                                place_bomb_sound.play()
+        
+        # Handle diarrhea effect - auto-place bombs continuously
+        DIARRHEA_BOMB_INTERVAL = 500  # milliseconds between auto-bomb placements
+        if not paused:
+            # Player 1 diarrhea
+            if player1 and not player1.game_over and player1.skull_effect == 'diarrhea' and not player1.is_throwing:
+                if not hasattr(player1, 'last_diarrhea_bomb_time'):
+                    player1.last_diarrhea_bomb_time = 0
+                if current_time - player1.last_diarrhea_bomb_time >= DIARRHEA_BOMB_INTERVAL:
+                    active_bomb_count = sum(1 for bomb in bombs if not bomb.exploded and bomb.placed_by == 1)
+                    if active_bomb_count < player1.max_bombs:
+                        grid_x = int(player1.x // CELL_SIZE)
+                        grid_y = int(player1.y // CELL_SIZE)
+                        bomb_exists = any(bomb.grid_x == grid_x and bomb.grid_y == grid_y and not bomb.exploded for bomb in bombs)
+                        if not bomb_exists and (grid_x, grid_y) not in walls and (grid_x, grid_y) not in destructible_walls:
+                            new_bomb = Bomb(grid_x, grid_y, current_time, placed_by=1)
+                            bombs.append(new_bomb)
+                            player1.last_diarrhea_bomb_time = current_time
+                            if place_bomb_sound:
+                                place_bomb_sound.play()
+            
+            # Player 2 diarrhea
+            if player2 and not player2.game_over and player2.skull_effect == 'diarrhea' and not player2.is_throwing:
+                if not hasattr(player2, 'last_diarrhea_bomb_time'):
+                    player2.last_diarrhea_bomb_time = 0
+                if current_time - player2.last_diarrhea_bomb_time >= DIARRHEA_BOMB_INTERVAL:
+                    active_bomb_count = sum(1 for bomb in bombs if not bomb.exploded and bomb.placed_by == 2)
+                    if active_bomb_count < player2.max_bombs:
+                        grid_x = int(player2.x // CELL_SIZE)
+                        grid_y = int(player2.y // CELL_SIZE)
+                        bomb_exists = any(bomb.grid_x == grid_x and bomb.grid_y == grid_y and not bomb.exploded for bomb in bombs)
+                        if not bomb_exists and (grid_x, grid_y) not in walls and (grid_x, grid_y) not in destructible_walls:
+                            new_bomb = Bomb(grid_x, grid_y, current_time, placed_by=2)
+                            bombs.append(new_bomb)
+                            player2.last_diarrhea_bomb_time = current_time
+                            if place_bomb_sound:
+                                place_bomb_sound.play()
+            
+            # Player 3 diarrhea
+            if player3 and not player3.game_over and player3.skull_effect == 'diarrhea' and not player3.is_throwing:
+                if not hasattr(player3, 'last_diarrhea_bomb_time'):
+                    player3.last_diarrhea_bomb_time = 0
+                if current_time - player3.last_diarrhea_bomb_time >= DIARRHEA_BOMB_INTERVAL:
+                    active_bomb_count = sum(1 for bomb in bombs if not bomb.exploded and bomb.placed_by == 3)
+                    if active_bomb_count < player3.max_bombs:
+                        grid_x = int(player3.x // CELL_SIZE)
+                        grid_y = int(player3.y // CELL_SIZE)
+                        bomb_exists = any(bomb.grid_x == grid_x and bomb.grid_y == grid_y and not bomb.exploded for bomb in bombs)
+                        if not bomb_exists and (grid_x, grid_y) not in walls and (grid_x, grid_y) not in destructible_walls:
+                            new_bomb = Bomb(grid_x, grid_y, current_time, placed_by=3)
+                            bombs.append(new_bomb)
+                            player3.last_diarrhea_bomb_time = current_time
+                            if place_bomb_sound:
+                                place_bomb_sound.play()
+            
+            # Player 4 diarrhea
+            if player4 and not player4.game_over and player4.skull_effect == 'diarrhea' and not player4.is_throwing:
+                if not hasattr(player4, 'last_diarrhea_bomb_time'):
+                    player4.last_diarrhea_bomb_time = 0
+                if current_time - player4.last_diarrhea_bomb_time >= DIARRHEA_BOMB_INTERVAL:
+                    active_bomb_count = sum(1 for bomb in bombs if not bomb.exploded and bomb.placed_by == 4)
+                    if active_bomb_count < player4.max_bombs:
+                        grid_x = int(player4.x // CELL_SIZE)
+                        grid_y = int(player4.y // CELL_SIZE)
+                        bomb_exists = any(bomb.grid_x == grid_x and bomb.grid_y == grid_y and not bomb.exploded for bomb in bombs)
+                        if not bomb_exists and (grid_x, grid_y) not in walls and (grid_x, grid_y) not in destructible_walls:
+                            new_bomb = Bomb(grid_x, grid_y, current_time, placed_by=4)
+                            bombs.append(new_bomb)
+                            player4.last_diarrhea_bomb_time = current_time
+                            if place_bomb_sound:
+                                place_bomb_sound.play()
         
         # Update sudden death mechanic - handle hurry animation and sound sequence first
         if sudden_death_active and not paused and sudden_death_hurry_start_time is not None:
@@ -4651,6 +5114,9 @@ def main():
                 player_pos = (player_grid_x, player_grid_y)
                 if player_pos in powerups:
                     powerup_type = powerups[player_pos]
+                    # Remove skull effect if player has it (before picking up new powerup)
+                    if remove_skull_effect(player1):
+                        respawn_skull()
                     if powerup_type == 'bomb_up':
                         player1.max_bombs += 1
                         if item_get_sound:
@@ -4671,6 +5137,20 @@ def main():
                         player1.has_glove = True
                         if item_get_sound:
                             item_get_sound.play()
+                    elif powerup_type == 'skull':
+                        player1.has_skull = True
+                        # Randomly assign one of the skull effects
+                        skull_effects = ['fast', 'slow', 'diarrhea', 'low_power', 'constipation']
+                        player1.skull_effect = random.choice(skull_effects)
+                        # Apply effect immediately
+                        if player1.skull_effect == 'fast':
+                            player1.move_speed *= 3.0
+                        elif player1.skull_effect == 'slow':
+                            player1.move_speed *= 0.3
+                        elif player1.skull_effect == 'low_power':
+                            player1.explosion_range = 1
+                        if skull_sound:
+                            skull_sound.play()
                     powerups.pop(player_pos)
                 
                 # Store old position for corner resolution
@@ -4992,6 +5472,9 @@ def main():
                 player_pos = (player_grid_x, player_grid_y)
                 if player_pos in powerups:
                     powerup_type = powerups[player_pos]
+                    # Remove skull effect if player has it (before picking up new powerup)
+                    if remove_skull_effect(player2):
+                        respawn_skull()
                     if powerup_type == 'bomb_up':
                         player2.max_bombs += 1
                         if item_get_sound:
@@ -5012,6 +5495,20 @@ def main():
                         player2.has_glove = True
                         if item_get_sound:
                             item_get_sound.play()
+                    elif powerup_type == 'skull':
+                        player2.has_skull = True
+                        # Randomly assign one of the skull effects
+                        skull_effects = ['fast', 'slow', 'diarrhea', 'low_power', 'constipation']
+                        player2.skull_effect = random.choice(skull_effects)
+                        # Apply effect immediately
+                        if player2.skull_effect == 'fast':
+                            player2.move_speed *= 3.0
+                        elif player2.skull_effect == 'slow':
+                            player2.move_speed *= 0.3
+                        elif player2.skull_effect == 'low_power':
+                            player2.explosion_range = 1
+                        if skull_sound:
+                            skull_sound.play()
                     powerups.pop(player_pos)
                 
                 # Store old position
@@ -5134,6 +5631,9 @@ def main():
                 player_pos3 = (player_grid_x3, player_grid_y3)
                 if player_pos3 in powerups:
                     powerup_type = powerups[player_pos3]
+                    # Remove skull effect if player has it (before picking up new powerup)
+                    if remove_skull_effect(player3):
+                        respawn_skull()
                     if powerup_type == 'bomb_up':
                         player3.max_bombs += 1
                         if item_get_sound:
@@ -5154,6 +5654,20 @@ def main():
                         player3.has_glove = True
                         if item_get_sound:
                             item_get_sound.play()
+                    elif powerup_type == 'skull':
+                        player3.has_skull = True
+                        # Randomly assign one of the skull effects
+                        skull_effects = ['fast', 'slow', 'diarrhea', 'low_power', 'constipation']
+                        player3.skull_effect = random.choice(skull_effects)
+                        # Apply effect immediately
+                        if player3.skull_effect == 'fast':
+                            player3.move_speed *= 3.0
+                        elif player3.skull_effect == 'slow':
+                            player3.move_speed *= 0.3
+                        elif player3.skull_effect == 'low_power':
+                            player3.explosion_range = 1
+                        if skull_sound:
+                            skull_sound.play()
                     powerups.pop(player_pos3)
                 
                 # Store old position
@@ -5650,6 +6164,9 @@ def main():
                 player_pos4 = (player_grid_x4, player_grid_y4)
                 if player_pos4 in powerups:
                     powerup_type = powerups[player_pos4]
+                    # Remove skull effect if player has it (before picking up new powerup)
+                    if remove_skull_effect(player4):
+                        respawn_skull()
                     if powerup_type == 'bomb_up':
                         player4.max_bombs += 1
                         if item_get_sound:
@@ -5670,6 +6187,20 @@ def main():
                         player4.has_glove = True
                         if item_get_sound:
                             item_get_sound.play()
+                    elif powerup_type == 'skull':
+                        player4.has_skull = True
+                        # Randomly assign one of the skull effects
+                        skull_effects = ['fast', 'slow', 'diarrhea', 'low_power', 'constipation']
+                        player4.skull_effect = random.choice(skull_effects)
+                        # Apply effect immediately
+                        if player4.skull_effect == 'fast':
+                            player4.move_speed *= 3.0
+                        elif player4.skull_effect == 'slow':
+                            player4.move_speed *= 0.3
+                        elif player4.skull_effect == 'low_power':
+                            player4.explosion_range = 1
+                        if skull_sound:
+                            skull_sound.play()
                     powerups.pop(player_pos4)
                 
                 # Store old position

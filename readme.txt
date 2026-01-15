@@ -32,4 +32,9 @@ known issues:
 thrown bombs do not act correctly
 G to give glove doesnt give to players 3 and 4, only 1 and 2
 
-
+skull:
+ The player moves extremely fast.
+The player moves extremely slow.
+ The player continuously sets bombs when possible.
+The player's bombs explode at the minimum blast radius regardless of their current blast radius (1 tile from origin).
+The player is unable to set bombs.
